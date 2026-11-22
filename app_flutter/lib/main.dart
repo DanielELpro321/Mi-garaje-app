@@ -272,6 +272,7 @@ class GarageApp extends StatefulWidget {
 class _GarageAppState extends State<GarageApp> {
   final _store = GarageStore();
   final _maintenanceVoice = MaintenanceVoiceController();
+  final _navigatorKey = GlobalKey<NavigatorState>();
   GarageData _data = GarageData();
   bool _loading = true;
   String? _loadError;
@@ -318,6 +319,29 @@ class _GarageAppState extends State<GarageApp> {
     return _data.vehicles.isEmpty ? null : _data.vehicles.first;
   }
 
+  BuildContext get _navigatorContext {
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null) {
+      throw StateError('La navegación todavía no está disponible.');
+    }
+    return navigatorContext;
+  }
+
+  Future<T?> _showDialog<T>({required WidgetBuilder builder}) async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) {
+      throw StateError('La navegación todavía no está disponible.');
+    }
+    final route = DialogRoute<T>(
+      context: navigator.context,
+      builder: builder,
+      barrierDismissible: true,
+    );
+    final result = await navigator.push<T>(route);
+    await route.completed;
+    return result;
+  }
+
   Future<void> _save() async {
     try {
       await _store.save(_data);
@@ -328,7 +352,7 @@ class _GarageAppState extends State<GarageApp> {
   }
 
   void _message(String text, {bool isError = false}) {
-    ScaffoldMessenger.of(context)
+    ScaffoldMessenger.of(_navigatorContext)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(text),
@@ -371,6 +395,7 @@ class _GarageAppState extends State<GarageApp> {
     );
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'Mi Garaje',
       debugShowCheckedModeBanner: false,
       theme: theme,
@@ -625,7 +650,7 @@ class _GarageAppState extends State<GarageApp> {
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: _addVehicle,
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.two_wheeler_rounded),
               label: const Text('Agregar mi primera moto'),
             ),
           ],
@@ -1157,8 +1182,7 @@ class _GarageAppState extends State<GarageApp> {
     final cc = TextEditingController(text: '150');
     final km = TextEditingController(text: '0');
     final plate = TextEditingController();
-    final saved = await showDialog<Vehicle>(
-      context: context,
+    final saved = await _showDialog<Vehicle>(
       builder: (context) => _formDialog(
         title: 'Agregar vehículo',
         formKey: form,
@@ -1213,8 +1237,7 @@ class _GarageAppState extends State<GarageApp> {
     final cc = TextEditingController(text: '${vehicle.cc}');
     final km = TextEditingController(text: '${vehicle.km}');
     final plate = TextEditingController(text: vehicle.plate);
-    final saved = await showDialog<bool>(
-      context: context,
+    final saved = await _showDialog<bool>(
       builder: (context) => _formDialog(
         title: 'Editar vehículo',
         formKey: form,
@@ -1279,8 +1302,7 @@ class _GarageAppState extends State<GarageApp> {
     final price = TextEditingController(text: _data.pricePerGallon.round().toString());
     final km = TextEditingController(text: vehicle.km.toString());
     final station = TextEditingController();
-    final saved = await showDialog<FuelEntry>(
-      context: context,
+    final saved = await _showDialog<FuelEntry>(
       builder: (context) => _formDialog(
         title: 'Registrar combustible',
         formKey: form,
@@ -1330,8 +1352,7 @@ class _GarageAppState extends State<GarageApp> {
       _message('Agrega primero una moto.');
       return;
     }
-    final saved = await showDialog<ServiceEntry>(
-      context: context,
+    final saved = await _showDialog<ServiceEntry>(
       builder: (_) => _MaintenanceServiceDialog(
         vehicle: vehicle,
         voiceController: _maintenanceVoice,
@@ -1351,8 +1372,7 @@ class _GarageAppState extends State<GarageApp> {
     }
     final name = TextEditingController();
     DateTime expiry = DateTime.now().add(const Duration(days: 365));
-    final saved = await showDialog<VehicleDocument>(
-      context: context,
+    final saved = await _showDialog<VehicleDocument>(
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Agregar documento'),
@@ -1379,7 +1399,10 @@ class _GarageAppState extends State<GarageApp> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               onPressed: () {
                 if (name.text.trim().isEmpty) {
@@ -1411,8 +1434,7 @@ class _GarageAppState extends State<GarageApp> {
     final form = GlobalKey<FormState>();
     final name = TextEditingController(text: _data.owner);
     final city = TextEditingController(text: _data.city);
-    final saved = await showDialog<bool>(
-      context: context,
+    final saved = await _showDialog<bool>(
       builder: (context) => _formDialog(
         title: 'Editar perfil',
         formKey: form,
@@ -1433,8 +1455,7 @@ class _GarageAppState extends State<GarageApp> {
   Future<void> _editPrice() async {
     final form = GlobalKey<FormState>();
     final price = TextEditingController(text: _data.pricePerGallon.round().toString());
-    final saved = await showDialog<bool>(
-      context: context,
+    final saved = await _showDialog<bool>(
       builder: (context) => _formDialog(
         title: 'Precio del galón',
         formKey: form,
@@ -1487,14 +1508,16 @@ class _GarageAppState extends State<GarageApp> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => _navigatorKey.currentState!.pop(),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(onPressed: onSubmit, child: const Text('Guardar')),
         ],
       );
 
   Future<bool> _confirm(String title, String body) async =>
-      await showDialog<bool>(
-        context: context,
+      await _showDialog<bool>(
         builder: (context) => AlertDialog(
           title: Text(title),
           content: Text(body),
