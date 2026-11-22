@@ -20,5 +20,8 @@ workflows:
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
           (cd build/ios/ipa && zip -qry App-unsigned.ipa Payload && rm -rf Payload)
           test -s build/ios/ipa/App-unsigned.ipa
+          ls -lh build/ios/ipa/App-unsigned.ipa
     artifacts:
+      - ${CM_BUILD_DIR}/app_flutter/build/ios/ipa/*.ipa
       - app_flutter/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
