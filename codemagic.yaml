@@ -16,12 +16,9 @@ workflows:
       - name: Empaquetar IPA sin firma
         script: |
           set -e
-          rm -rf Payload
-          mkdir -p Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
-          rm -f MiGaraje-unsigned.ipa
-          /usr/bin/zip -qr -X MiGaraje-unsigned.ipa Payload
-          rm -rf Payload
-          test -s MiGaraje-unsigned.ipa
+          rm -rf build/ios/ipa && mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          (cd build/ios/ipa && zip -qry App-unsigned.ipa Payload && rm -rf Payload)
+          test -s build/ios/ipa/App-unsigned.ipa
     artifacts:
-      - app_flutter/*.ipa
+      - app_flutter/build/ios/ipa/*.ipa
