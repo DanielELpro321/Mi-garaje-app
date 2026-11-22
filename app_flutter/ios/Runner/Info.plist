@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mi Garaje usa el micrófono para dictar los mantenimientos de tu moto.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Mi Garaje convierte tu dictado en los campos del mantenimiento para que puedas revisarlos antes de guardar.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

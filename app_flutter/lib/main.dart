@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'maintenance_voice.dart';
 
 void main() => runApp(const GarageApp());
 
@@ -268,6 +271,7 @@ class GarageApp extends StatefulWidget {
 
 class _GarageAppState extends State<GarageApp> {
   final _store = GarageStore();
+  final _maintenanceVoice = MaintenanceVoiceController();
   GarageData _data = GarageData();
   bool _loading = true;
   String? _loadError;
@@ -787,7 +791,7 @@ class _GarageAppState extends State<GarageApp> {
           FilledButton.icon(
             onPressed: _addService,
             icon: const Icon(Icons.add),
-            label: const Text('Programar servicio'),
+            label: const Text('Registrar mantenimiento'),
           ),
           const SizedBox(height: 24),
           _sectionTitle('Documentos y vencimientos'),
@@ -1326,50 +1330,17 @@ class _GarageAppState extends State<GarageApp> {
       _message('Agrega primero una moto.');
       return;
     }
-    final form = GlobalKey<FormState>();
-    final name = TextEditingController();
-    final interval = TextEditingController(text: '3000');
-    final lastKm = TextEditingController(text: '${vehicle.km}');
-    final cost = TextEditingController();
     final saved = await showDialog<ServiceEntry>(
       context: context,
-      builder: (context) => _formDialog(
-        title: 'Programar servicio',
-        formKey: form,
-        fields: [
-          _field(name, 'Nombre del servicio', required: true),
-          _field(interval, 'Cada cuántos km', numeric: true, required: true),
-          _field(lastKm, 'Kilometraje del último servicio', numeric: true, required: true),
-          _field(cost, 'Costo estimado (opcional)', numeric: true),
-        ],
-        onSubmit: () {
-          if (!form.currentState!.validate()) return;
-          final every = int.tryParse(interval.text) ?? 0;
-          final last = int.tryParse(lastKm.text) ?? -1;
-          if (every <= 0 || last < 0 || last > vehicle.km) {
-            _message('El intervalo debe ser positivo y el último kilometraje válido.', isError: true);
-            return;
-          }
-          Navigator.pop(
-            context,
-            ServiceEntry(
-              vehicleId: vehicle.id,
-              name: name.text.trim(),
-              intervalKm: every,
-              lastKm: last,
-              cost: double.tryParse(cost.text) ?? 0,
-              date: _today(),
-            ),
-          );
-        },
+      builder: (_) => _MaintenanceServiceDialog(
+        vehicle: vehicle,
+        voiceController: _maintenanceVoice,
       ),
     );
-    for (final controller in [name, interval, lastKm, cost]) {
-      controller.dispose();
-    }
     if (saved == null) return;
     _data.services.add(saved);
     await _save();
+    _message('Mantenimiento registrado');
   }
 
   Future<void> _addDocument() async {
@@ -1538,6 +1509,407 @@ class _GarageAppState extends State<GarageApp> {
         ),
       ) ??
       false;
+}
+
+enum _VoiceState { idle, listening, processing, ready, error, permissionDenied }
+
+class _MaintenanceServiceDialog extends StatefulWidget {
+  const _MaintenanceServiceDialog({
+    required this.vehicle,
+    required this.voiceController,
+  });
+
+  final Vehicle vehicle;
+  final MaintenanceVoiceController voiceController;
+
+  @override
+  State<_MaintenanceServiceDialog> createState() =>
+      _MaintenanceServiceDialogState();
+}
+
+class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _interval = TextEditingController(text: '3000');
+  late final TextEditingController _lastKm = TextEditingController(
+    text: '${widget.vehicle.km}',
+  );
+  final _cost = TextEditingController();
+  DateTime _serviceDate = DateTime.now();
+  _VoiceState _voiceState = _VoiceState.idle;
+  String _voiceMessage =
+      'Dicta el trabajo realizado para rellenar el formulario.';
+  String _latestTranscript = '';
+  String? _formError;
+  bool _handledTranscript = false;
+
+  @override
+  void dispose() {
+    widget.voiceController.clearListeners();
+    if (widget.voiceController.isListening) {
+      unawaited(widget.voiceController.cancel());
+    }
+    _name.dispose();
+    _interval.dispose();
+    _lastKm.dispose();
+    _cost.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleDictation() async {
+    if (_voiceState == _VoiceState.listening) {
+      setState(() {
+        _voiceState = _VoiceState.processing;
+        _voiceMessage = 'Procesando el dictado...';
+      });
+      try {
+        await widget.voiceController.stop();
+        await _finishAfterPause();
+      } catch (error) {
+        _showVoiceError('No se pudo detener el reconocimiento: $error');
+      }
+      return;
+    }
+
+    _handledTranscript = false;
+    _latestTranscript = '';
+    setState(() {
+      _voiceState = _VoiceState.processing;
+      _voiceMessage = 'Solicitando acceso al micrófono...';
+      _formError = null;
+    });
+
+    try {
+      final available = await widget.voiceController.initialize(
+        onStatus: _onVoiceStatus,
+        onError: _onVoiceError,
+      );
+      if (!mounted) return;
+      if (!available) {
+        setState(() {
+          _voiceState = _VoiceState.permissionDenied;
+          _voiceMessage =
+              'No se concedió el permiso o el reconocimiento de voz no está disponible. Revisa los permisos en Ajustes.';
+        });
+        return;
+      }
+
+      final localeId = await widget.voiceController.spanishLocaleId();
+      if (!mounted) return;
+      if (localeId == null) {
+        setState(() {
+          _voiceState = _VoiceState.error;
+          _voiceMessage =
+              'El dispositivo no tiene reconocimiento de voz en español disponible.';
+        });
+        return;
+      }
+
+      setState(() {
+        _voiceState = _VoiceState.listening;
+        _voiceMessage = 'Escuchando... Pulsa el botón para terminar.';
+      });
+      await widget.voiceController.listen(
+        localeId: localeId,
+        onResult: _onVoiceResult,
+      );
+    } catch (error) {
+      _showVoiceError('No se pudo iniciar el reconocimiento de voz: $error');
+    }
+  }
+
+  void _onVoiceStatus(String status) {
+    if (!mounted) return;
+    if (status == 'listening') {
+      setState(() {
+        _voiceState = _VoiceState.listening;
+        _voiceMessage = 'Escuchando... Pulsa el botón para terminar.';
+      });
+    } else if ((status == 'notListening' || status == 'done') &&
+        _voiceState == _VoiceState.listening) {
+      setState(() {
+        _voiceState = _VoiceState.processing;
+        _voiceMessage = 'Procesando el dictado...';
+      });
+      unawaited(_finishAfterPause());
+    }
+  }
+
+  void _onVoiceResult(String words, bool isFinal) {
+    if (!mounted || _handledTranscript) return;
+    _latestTranscript = words;
+    setState(() {});
+    if (isFinal && words.trim().isNotEmpty) {
+      _applyTranscript(words);
+    }
+  }
+
+  Future<void> _finishAfterPause() async {
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted || _handledTranscript) return;
+    if (_latestTranscript.trim().isEmpty) {
+      setState(() {
+        _voiceState = _VoiceState.error;
+        _voiceMessage = 'No se detectó voz. Intenta dictar de nuevo.';
+      });
+      return;
+    }
+    _applyTranscript(_latestTranscript);
+  }
+
+  void _applyTranscript(String words) {
+    if (_handledTranscript) return;
+    _handledTranscript = true;
+    final draft = parseMaintenanceVoiceText(words);
+    if (draft.description.isNotEmpty) {
+      _name.text = draft.description;
+    }
+    if (draft.kilometers != null) {
+      _lastKm.text = '${draft.kilometers}';
+    }
+    setState(() {
+      _serviceDate = draft.date;
+      _voiceState = draft.description.isEmpty
+          ? _VoiceState.error
+          : _VoiceState.ready;
+      _voiceMessage = draft.description.isEmpty
+          ? 'No se identificó el trabajo realizado. Escríbelo antes de guardar.'
+          : 'Dictado interpretado. Revisa y corrige los campos antes de guardar.';
+    });
+  }
+
+  void _onVoiceError(String error) {
+    final normalized = error.toLowerCase();
+    final isPermissionError = normalized.contains('permission') ||
+        normalized.contains('denied') ||
+        normalized.contains('not_authorized') ||
+        normalized.contains('insufficient');
+    final message = isPermissionError
+        ? 'Permiso de micrófono o reconocimiento denegado. Actívalo en Ajustes para dictar.'
+        : normalized.contains('no_match')
+            ? 'No se entendió el dictado. Intenta de nuevo.'
+            : 'Error de reconocimiento de voz: $error';
+    _showVoiceError(message, permissionDenied: isPermissionError);
+  }
+
+  void _showVoiceError(String message, {bool permissionDenied = false}) {
+    if (!mounted) return;
+    setState(() {
+      _voiceState =
+          permissionDenied ? _VoiceState.permissionDenied : _VoiceState.error;
+      _voiceMessage = message;
+    });
+  }
+
+  Future<void> _pickDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _serviceDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2200),
+    );
+    if (selected != null) setState(() => _serviceDate = selected);
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final every = int.tryParse(_interval.text) ?? 0;
+    final last = int.tryParse(_lastKm.text) ?? -1;
+    if (every <= 0 || last < 0 || last > widget.vehicle.km) {
+      setState(() {
+        _formError =
+            'El intervalo debe ser positivo y el kilometraje no puede superar los ${widget.vehicle.km} km registrados en la moto.';
+      });
+      return;
+    }
+    Navigator.of(context).pop(
+      ServiceEntry(
+        vehicleId: widget.vehicle.id,
+        name: _name.text.trim(),
+        intervalKm: every,
+        lastKm: last,
+        cost: double.tryParse(_cost.text.replaceAll(',', '.')) ?? 0,
+        date: _dateIso(_serviceDate),
+      ),
+    );
+  }
+
+  String _dateIso(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  Widget _textField(
+    TextEditingController controller,
+    String label, {
+    bool numeric = false,
+    bool required = false,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(
+          controller: controller,
+          keyboardType: numeric
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(labelText: label),
+          validator: required
+              ? (value) => value == null || value.trim().isEmpty
+                  ? 'Este campo es obligatorio'
+                  : null
+              : null,
+        ),
+      );
+
+  Color get _voiceColor {
+    switch (_voiceState) {
+      case _VoiceState.listening:
+      case _VoiceState.permissionDenied:
+      case _VoiceState.error:
+        return _red;
+      case _VoiceState.processing:
+        return _muted;
+      case _VoiceState.ready:
+        return _green;
+      case _VoiceState.idle:
+        return _muted;
+    }
+  }
+
+  IconData get _voiceIcon => switch (_voiceState) {
+        _VoiceState.listening => Icons.stop_rounded,
+        _VoiceState.processing => Icons.hourglass_top_rounded,
+        _VoiceState.ready => Icons.check_circle_outline_rounded,
+        _VoiceState.permissionDenied => Icons.mic_off_rounded,
+        _VoiceState.error => Icons.error_outline_rounded,
+        _VoiceState.idle => Icons.mic_none_rounded,
+      };
+
+  String get _voiceButtonLabel => switch (_voiceState) {
+        _VoiceState.listening => 'Detener dictado',
+        _VoiceState.processing => 'Procesando dictado',
+        _VoiceState.ready => 'Volver a dictar',
+        _VoiceState.permissionDenied => 'Reintentar dictado',
+        _VoiceState.error => 'Reintentar dictado',
+        _VoiceState.idle => 'Dictar mantenimiento',
+      };
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Registrar mantenimiento'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _voicePanel(),
+                  const SizedBox(height: 14),
+                  _textField(_name, 'Trabajo realizado', required: true),
+                  _textField(
+                    _interval,
+                    'Intervalo de mantenimiento (km)',
+                    numeric: true,
+                    required: true,
+                  ),
+                  _textField(
+                    _lastKm,
+                    'Kilometraje del servicio',
+                    numeric: true,
+                    required: true,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading:
+                        const Icon(Icons.calendar_month_rounded, color: _red),
+                    title: const Text('Fecha del mantenimiento'),
+                    subtitle: Text(_dateLabel(_serviceDate.toIso8601String())),
+                    onTap: _pickDate,
+                  ),
+                  _textField(_cost, 'Costo del servicio (opcional)',
+                      numeric: true),
+                  if (_formError != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          _formError!,
+                          style: const TextStyle(color: _red, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(onPressed: _save, child: const Text('Guardar')),
+        ],
+      );
+
+  Widget _voicePanel() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _surface2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Registro por voz',
+                    style: TextStyle(
+                      color: _voiceColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton.filled(
+                  tooltip: _voiceButtonLabel,
+                  onPressed: _voiceState == _VoiceState.processing
+                      ? null
+                      : _toggleDictation,
+                  style: IconButton.styleFrom(
+                    backgroundColor: _voiceState == _VoiceState.listening
+                        ? _red
+                        : _line,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: Icon(_voiceIcon),
+                ),
+              ],
+            ),
+            if (_voiceState == _VoiceState.processing)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 3),
+              ),
+            Text(
+              _voiceMessage,
+              style: TextStyle(color: _voiceColor, fontSize: 12),
+            ),
+            if (_latestTranscript.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Escuchado: “$_latestTranscript”',
+                style: const TextStyle(color: _muted, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+      );
 }
 
 class _Panel extends StatelessWidget {

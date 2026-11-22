@@ -3,6 +3,10 @@
 Versión móvil multiplataforma. Incluye Inicio, Garaje, Mantenimiento,
 Estadísticas y Perfil; permite administrar vehículos, cargas de combustible,
 servicios y documentos. La información se almacena localmente.
+En Mantenimiento puedes dictar el trabajo, kilometraje y fecha; la app rellena
+el formulario para que lo revises antes de guardar. El dictado requiere los
+permisos de micrófono y reconocimiento de voz, y un idioma español disponible
+en el dispositivo.
 
 ## Desarrollo
 
