@@ -1,0 +1,41 @@
+# Local tooling and session material
+.DS_Store
+.idea/
+.vscode/
+attachments/
+capture/
+checks/
+inbox/
+investigation.cany/
+pinned/
+reference/
+craft.json
+feed.json
+transcript.json
+usage.json
+*.log
+
+# Generated Rust and Android output
+app/target/
+app/.cargo/config.toml
+app/Cargo.toml.bak
+app/src/main.rs.desktop.bak
+app/tools/
+app/android/build/
+app/android/dist/
+app/android/app/src/main/jniLibs/
+app/*.apk
+MiGaraje.apk
+app/shots/
+app/app/shots/
+app/capturas/
+
+# Flutter/Dart output
+app_flutter/.dart_tool/
+app_flutter/.flutter-plugins-dependencies
+app_flutter/.packages
+app_flutter/build/
+app_flutter/Payload/
+app_flutter/*.ipa
+app_flutter/ios/Pods/
+app_flutter/ios/.symlinks/
