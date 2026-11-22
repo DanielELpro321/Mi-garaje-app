@@ -426,6 +426,19 @@ class _GarageAppState extends State<GarageApp> {
                       ],
                     ),
                   ),
+                  floatingActionButton: _tab == 2
+                      ? FloatingActionButton.extended(
+                          heroTag: 'dictate-maintenance',
+                          onPressed: () =>
+                              _addService(startVoiceImmediately: true),
+                          tooltip: 'Dictar mantenimiento',
+                          backgroundColor: _red,
+                          icon: const Icon(Icons.mic_rounded),
+                          label: const Text('Dictar mantenimiento'),
+                        )
+                      : null,
+                  floatingActionButtonLocation:
+                      FloatingActionButtonLocation.endFloat,
                   bottomNavigationBar: NavigationBar(
                     selectedIndex: _tab,
                     onDestinationSelected: (index) => setState(() => _tab = index),
@@ -1346,7 +1359,7 @@ class _GarageAppState extends State<GarageApp> {
     _message('Combustible registrado');
   }
 
-  Future<void> _addService() async {
+  Future<void> _addService({bool startVoiceImmediately = false}) async {
     final vehicle = _vehicle;
     if (vehicle == null) {
       _message('Agrega primero una moto.');
@@ -1356,6 +1369,7 @@ class _GarageAppState extends State<GarageApp> {
       builder: (_) => _MaintenanceServiceDialog(
         vehicle: vehicle,
         voiceController: _maintenanceVoice,
+        startVoiceImmediately: startVoiceImmediately,
       ),
     );
     if (saved == null) return;
@@ -1540,10 +1554,12 @@ class _MaintenanceServiceDialog extends StatefulWidget {
   const _MaintenanceServiceDialog({
     required this.vehicle,
     required this.voiceController,
+    this.startVoiceImmediately = false,
   });
 
   final Vehicle vehicle;
   final MaintenanceVoiceController voiceController;
+  final bool startVoiceImmediately;
 
   @override
   State<_MaintenanceServiceDialog> createState() =>
@@ -1565,6 +1581,16 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
   String _latestTranscript = '';
   String? _formError;
   bool _handledTranscript = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startVoiceImmediately) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_toggleDictation());
+      });
+    }
+  }
 
   @override
   void dispose() {

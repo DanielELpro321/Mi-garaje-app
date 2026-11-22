@@ -33,4 +33,29 @@ void main() {
 
     expect(find.text('Honda CB 125'), findsOneWidget);
   });
+
+  testWidgets('floating voice button opens the maintenance form',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(const GarageApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Agregar mi primera moto'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Honda');
+    await tester.enterText(find.byType(TextFormField).at(1), 'CB 125');
+    await tester.tap(find.text('Guardar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Servicio'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dictar mantenimiento'), findsOneWidget);
+
+    await tester.tap(find.text('Dictar mantenimiento'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Registrar mantenimiento'), findsNWidgets(2));
+    expect(find.text('Registro por voz'), findsOneWidget);
+  });
 }
