@@ -43,4 +43,32 @@ void main() {
       expect(explicitDate.description, 'Cambio de filtro');
     });
   });
+
+  group('voice parsers', () {
+    final today = DateTime(2026, 11, 22);
+
+    test('maintenance extracts cost, kilometers and date', () {
+      final draft = parseMaintenanceVoiceText(
+        'El 20 de noviembre cambié la llanta trasera a los 18.500 km, me costó 220 mil pesos',
+        now: today,
+      );
+
+      expect(draft.description, 'cambié la llanta trasera');
+      expect(draft.kilometers, 18500);
+      expect(draft.date, DateTime(2026, 11, 20));
+      expect(draft.cost, 220000);
+    });
+
+    test('fuel extracts amount, price, kilometers and date', () {
+      final draft = parseFuelVoiceText(
+        'Hoy eché veinte mil pesos de gasolina a los 15.000 km, a 12.500 el galón',
+        now: today,
+      );
+
+      expect(draft.amount, 20000);
+      expect(draft.kilometers, 15000);
+      expect(draft.date, today);
+      expect(draft.pricePerGallon, 12500);
+    });
+  });
 }

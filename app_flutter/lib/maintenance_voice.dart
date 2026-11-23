@@ -71,11 +71,29 @@ class MaintenanceVoiceDraft {
     required this.description,
     required this.kilometers,
     required this.date,
+    required this.cost,
   });
 
   final String description;
   final int? kilometers;
   final DateTime date;
+  final double? cost;
+}
+
+class FuelVoiceDraft {
+  const FuelVoiceDraft({
+    required this.amount,
+    required this.kilometers,
+    required this.date,
+    required this.pricePerGallon,
+    required this.station,
+  });
+
+  final double? amount;
+  final int? kilometers;
+  final DateTime date;
+  final double? pricePerGallon;
+  final String? station;
 }
 
 const _spanishNumberWordPattern =
@@ -91,6 +109,20 @@ const _spanishNumberWordPattern =
 MaintenanceVoiceDraft parseMaintenanceVoiceText(String text, {DateTime? now}) {
   final today = now ?? DateTime.now();
   final normalized = _fold(text);
+  final costMatch = RegExp(
+    r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale|por)\s*(?:cop|\$|pesos?)?\s*'
+    r'((?:\d+(?:[.,]\d{1,3})?\s*(?:mil|millones?)?|'
+    r'(?:veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|'
+    r'noventa|ciento|cien)\s+(?:mil|pesos)'
+    r'|(?:cero|un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|'
+    r'diez|once|doce|trece|catorce|quince|diecis[eé]is|diecisiete|'
+    r'dieciocho|diecinueve|veinte|treinta|cuarenta|cincuenta|'
+    r'sesenta|setenta|ochenta|noventa|cien|mil)\b))',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  final cost = costMatch == null
+      ? null
+      : _parseVoiceAmount(costMatch.group(1)!);
   final numericKm = RegExp(
     r'\b(\d+(?:[.,\s]\d{3})*|\d+\s+mil(?:\s+\d{1,3})?)\s*(?:km|kilometros?)\b',
   ).firstMatch(normalized);
@@ -108,14 +140,103 @@ MaintenanceVoiceDraft parseMaintenanceVoiceText(String text, {DateTime? now}) {
 
   final date = _extractDate(normalized, today);
   var description = text;
-  if (kmMatch != null) {
-    description = _replaceRangeWithSpace(
-      description,
-      kmMatch.start,
-      kmMatch.end,
-    );
+  final costStart = RegExp(
+    r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\b',
+    caseSensitive: false,
+  ).firstMatch(description);
+  if (costStart != null) {
+    description = description.substring(0, costStart.start);
   }
+  if (spokenKm != null) {
+    final conIndex = description.toLowerCase().lastIndexOf(' con ');
+    if (conIndex >= 0) {
+      description = description.substring(0, conIndex);
+    }
+  }
+  description = description.replaceAll(
+    RegExp(r'\s+con\s+.*\b(?:km|kilometros?)\b.*$', caseSensitive: false),
+    '',
+  );
+  description = description.replaceAll(
+    RegExp(
+      r'\s+(?:con|a\s+los|a)\s+.*(?:km|kilometros?)\b.*$',
+      caseSensitive: false,
+    ),
+    '',
+  );
   description = description
+      .replaceAll(
+        RegExp(r'\bcon\s+.+?\s+kilometros?\b', caseSensitive: false),
+        ' ',
+      )
+      .replaceAll(
+        RegExp(r'\b(?:a\s+los|a|con)\s+.+?\s+km\b', caseSensitive: false),
+        ' ',
+      )
+      .replaceAll(
+        RegExp(
+          r'\bcon\s+(?:un\s+|una\s+|dos\s+|tres\s+|cuatro\s+|cinco\s+|seis\s+|siete\s+|ocho\s+|nueve\s+|diez\s+|once\s+|doce\s+|trece\s+|catorce\s+|quince\s+|diecisiete\s+|dieciocho\s+|diecinueve\s+|veinte\s+|treinta\s+|cuarenta\s+|cincuenta\s+|sesenta\s+|setenta\s+|ochenta\s+|noventa\s+|cien\s+|ciento\s+)?(?:mil\s+)?(?:kilometros?|km)\b',
+          caseSensitive: false,
+        ),
+        ' ',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:con\s+)?quince\s+mil\s*(?:kilometros?|km)\b',
+          caseSensitive: false,
+        ),
+        ' ',
+      )
+      .replaceAll(RegExp(r'\s*,\s*pesos\b', caseSensitive: false), '')
+      .replaceAll(
+        RegExp(
+          r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\b.*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:a\s+los|con|a)\s+(?:[\w.,]+\s*){0,8}(?:km|kilometros?)\b',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:\d+(?:[.,\s]\d{3})*|\d+\s+mil(?:\s+\d{1,3})?)\s*'
+          r'(?:km|kilometros?)\b',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:con\s+)?(?:' +
+              _spanishNumberWordPattern +
+              r')(?:\s+' +
+              _spanishNumberWordPattern +
+              r'){0,5}\s*(?:km|kilometros?)\b',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\bcon\s+(?:[a-z]+\s*)+\b(?:km|kilometros?)\b',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(RegExp(r'\s*,\s*pesos\b', caseSensitive: false), '');
+  description = description
+      .replaceAll(
+        RegExp(
+          r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\b.*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
       .replaceAll(
         RegExp(
           r'\b(?:hoy|ayer|anteayer)\b|'
@@ -128,6 +249,24 @@ MaintenanceVoiceDraft parseMaintenanceVoiceText(String text, {DateTime? now}) {
           caseSensitive: false,
         ),
         ' ',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\s*(?:cop|\$|pesos?)?\s*'
+          r'\d+(?:[.,]\d{1,3})?\s*(?:mil|millones?)?|'
+          r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\s*(?:cop|\$|pesos?)?\s*'
+          r'(?:veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|'
+          r'noventa|cien|ciento)\s+(?:mil|pesos)',
+          caseSensitive: false,
+        ),
+        ' ',
+      )
+      .replaceAll(
+        RegExp(
+          r'\b(?:me\s+)?(?:cost[oó]|pagu[eé]|vale)\b.*$',
+          caseSensitive: false,
+        ),
+        '',
       )
       .replaceFirst(
         RegExp(
@@ -145,7 +284,121 @@ MaintenanceVoiceDraft parseMaintenanceVoiceText(String text, {DateTime? now}) {
     description: description.trim(),
     kilometers: kilometers,
     date: date,
+    cost: cost,
   );
+}
+
+FuelVoiceDraft parseFuelVoiceText(String text, {DateTime? now}) {
+  final today = now ?? DateTime.now();
+  final normalized = _fold(text);
+  final date = _extractDate(normalized, today);
+
+  final numericKm = RegExp(
+    r'\b(\d+(?:[.,\s]\d{3})*|\d+\s+mil(?:\s+\d{1,3})?)\s*(?:km|kilometros?)\b',
+  ).firstMatch(normalized);
+  final spokenKm = RegExp(
+    r'\b((' +
+        _spanishNumberWordPattern +
+        r')(?:\s+' +
+        _spanishNumberWordPattern +
+        r'){0,5})\s*(?:km|kilometros?)\b',
+  ).firstMatch(normalized);
+  final kmMatch = _earliestMatch(numericKm, spokenKm);
+  final kilometers = kmMatch == null
+      ? null
+      : _parseSpanishNumber(kmMatch.group(1)!);
+
+  final amountMatch = RegExp(
+    r'\b(?:le\s+)?(?:eche|eche|ech[eé]|pagu[eé]|cargu[eé]|gasolina\s+por|'
+    r'por)\s*(?:cop|\$|pesos?)?\s*'
+    r'((?:\d+(?:[.,]\d{1,3})?\s*(?:mil|millones?)?)|'
+    r'(?:(?:veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|'
+    r'ciento|cien)\s+(?:mil|pesos)|'
+    r'(?:cero|un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|'
+    r'diez|once|doce|trece|catorce|quince|diecisiete|dieciocho|diecinueve)'
+    r'(?:\s+(?:mil|pesos))?))',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  final amount = amountMatch == null
+      ? null
+      : _parseVoiceAmount(amountMatch.group(1)!);
+
+  final priceMatch = RegExp(
+    r'(?:precio\s+(?:de\s+)?(?:galon|gal[oó]n)|a\s+)\s*(?:de\s+)?'
+    r'(?:cop|\$|pesos?)?\s*(\d+(?:[.,]\d{1,3})?)',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  final price = priceMatch == null
+      ? null
+      : _parseVoiceAmount(priceMatch.group(1)!);
+
+  final stationMatch = RegExp(
+    r'\b(?:en|de)\s+(?:la\s+)?(?:estaci[oó]n|gasolinera)\s+'
+    r'([a-z0-9\s]+)',
+    caseSensitive: false,
+  ).firstMatch(text);
+  var station = stationMatch?.group(1)?.trim();
+  if (station != null) {
+    station = station
+        .replaceAll(
+          RegExp(
+            r'\b(?:hoy|ayer|a|los|kilometros?|km)\b.*$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+  }
+
+  return FuelVoiceDraft(
+    amount: amount,
+    kilometers: kilometers,
+    date: date,
+    pricePerGallon: price,
+    station: station?.isEmpty == true ? null : station,
+  );
+}
+
+double? _parseVoiceAmount(String value) {
+  final normalized = _fold(value).trim();
+  final spokenNormalized = normalized
+      .replaceAll(RegExp(r'\b(?:pesos|cop|por galon|galon)\b'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  final grouped = RegExp(r'^(\d+(?:[.,]\d+)?)\s*(mil|millones?)?$')
+      .firstMatch(spokenNormalized);
+  if (grouped != null) {
+    var numberText = grouped.group(1)!;
+    double? number;
+    if (numberText.contains('.') &&
+        !numberText.contains(',') &&
+        RegExp(r'\.\d{3}$').hasMatch(numberText)) {
+      number = double.tryParse(numberText.replaceAll('.', ''));
+    } else if (numberText.contains(',') && !numberText.contains('.')) {
+      number = double.tryParse(numberText.replaceAll(',', '.'));
+    } else {
+      number = double.tryParse(numberText);
+    }
+    if (number != null) {
+      final suffix = grouped.group(2);
+      if (suffix == 'mil') return number * 1000;
+      if (suffix == 'millones' || suffix == 'millon') {
+        return number * 1000000;
+      }
+      return number;
+    }
+  }
+  final spoken = _parseSpanishNumber(spokenNormalized);
+  if (spoken != null) return spoken.toDouble();
+
+  final cleaned = normalized
+      .replaceAll('pesos', '')
+      .replaceAll('cop', '')
+      .trim();
+  final numeric = cleaned.replaceAll('.', '').replaceAll(',', '.');
+  final parsed = double.tryParse(numeric);
+  if (parsed != null) return parsed;
+  return null;
 }
 
 String _fold(String value) => value
@@ -162,9 +415,6 @@ RegExpMatch? _earliestMatch(RegExpMatch? first, RegExpMatch? second) {
   if (second == null) return first;
   return first.start <= second.start ? first : second;
 }
-
-String _replaceRangeWithSpace(String value, int start, int end) =>
-    '${value.substring(0, start)} ${value.substring(end)}';
 
 String _removeTrailingFiller(String value) {
   var result = value;

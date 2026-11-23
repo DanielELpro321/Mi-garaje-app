@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -436,21 +437,48 @@ class _GarageAppState extends State<GarageApp> {
                           icon: const Icon(Icons.mic_rounded),
                           label: const Text('Dictar mantenimiento'),
                         )
+                      : _tab == 3
+                          ? FloatingActionButton.extended(
+                              heroTag: 'dictate-fuel',
+                              onPressed: () =>
+                                  _addFuel(startVoiceImmediately: true),
+                              tooltip: 'Dictar combustible',
+                              backgroundColor: _red,
+                              icon: const Icon(Icons.local_gas_station_rounded),
+                              label: const Text('Dictar combustible'),
+                            )
                       : null,
                   floatingActionButtonLocation:
                       FloatingActionButtonLocation.endFloat,
-                  bottomNavigationBar: NavigationBar(
-                    selectedIndex: _tab,
-                    onDestinationSelected: (index) => setState(() => _tab = index),
-                    backgroundColor: _surface,
-                    indicatorColor: _red.withValues(alpha: 0.18),
-                    destinations: [
-                      for (final item in _tabs)
-                        NavigationDestination(
-                          icon: Icon(item.$1),
-                          label: item.$2,
+                  bottomNavigationBar: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _surface.withValues(alpha: 0.78),
+                          border: Border(
+                            top: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
                         ),
-                    ],
+                        child: NavigationBar(
+                          selectedIndex: _tab,
+                          onDestinationSelected: (index) =>
+                              setState(() => _tab = index),
+                          backgroundColor: Colors.transparent,
+                          indicatorColor: _red.withValues(alpha: 0.20),
+                          elevation: 0,
+                          destinations: [
+                            for (final item in _tabs)
+                              NavigationDestination(
+                                icon: Icon(item.$1),
+                                label: item.$2,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
     );
@@ -1304,53 +1332,20 @@ class _GarageAppState extends State<GarageApp> {
     await _save();
   }
 
-  Future<void> _addFuel() async {
+  Future<void> _addFuel({bool startVoiceImmediately = false}) async {
     final vehicle = _vehicle;
     if (vehicle == null) {
       _message('Agrega primero una moto.');
       return;
     }
-    final form = GlobalKey<FormState>();
-    final amount = TextEditingController();
-    final price = TextEditingController(text: _data.pricePerGallon.round().toString());
-    final km = TextEditingController(text: vehicle.km.toString());
-    final station = TextEditingController();
     final saved = await _showDialog<FuelEntry>(
-      builder: (context) => _formDialog(
-        title: 'Registrar combustible',
-        formKey: form,
-        fields: [
-          _field(amount, 'Total pagado (COP)', numeric: true, required: true),
-          _field(price, 'Precio por galón', numeric: true, required: true),
-          _field(km, 'Kilometraje del tablero', numeric: true, required: true),
-          _field(station, 'Estación (opcional)'),
-        ],
-        onSubmit: () {
-          if (!form.currentState!.validate()) return;
-          final value = double.tryParse(amount.text.replaceAll(',', '.')) ?? 0;
-          final gallonPrice = double.tryParse(price.text.replaceAll(',', '.')) ?? 0;
-          final odometer = int.tryParse(km.text) ?? -1;
-          if (value <= 0 || gallonPrice <= 0 || odometer < vehicle.km) {
-            _message('El monto y el precio deben ser positivos; el kilometraje no puede retroceder.', isError: true);
-            return;
-          }
-          Navigator.pop(
-            context,
-            FuelEntry(
-              vehicleId: vehicle.id,
-              date: _today(),
-              station: station.text.trim(),
-              amount: value,
-              pricePerGallon: gallonPrice,
-              km: odometer,
-            ),
-          );
-        },
+      builder: (_) => _FuelVoiceDialog(
+        vehicle: vehicle,
+        defaultPrice: _data.pricePerGallon,
+        voiceController: _maintenanceVoice,
+        startVoiceImmediately: startVoiceImmediately,
       ),
     );
-    for (final controller in [amount, price, km, station]) {
-      controller.dispose();
-    }
     if (saved == null) return;
     _data.fuel.add(saved);
     vehicle.km = saved.km;
@@ -1550,6 +1545,275 @@ class _GarageAppState extends State<GarageApp> {
 
 enum _VoiceState { idle, listening, processing, ready, error, permissionDenied }
 
+class _FuelVoiceDialog extends StatefulWidget {
+  const _FuelVoiceDialog({
+    required this.vehicle,
+    required this.defaultPrice,
+    required this.voiceController,
+    this.startVoiceImmediately = false,
+  });
+
+  final Vehicle vehicle;
+  final double defaultPrice;
+  final MaintenanceVoiceController voiceController;
+  final bool startVoiceImmediately;
+
+  @override
+  State<_FuelVoiceDialog> createState() => _FuelVoiceDialogState();
+}
+
+class _FuelVoiceDialogState extends State<_FuelVoiceDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _amount = TextEditingController();
+  late final TextEditingController _price = TextEditingController(
+    text: widget.defaultPrice.round().toString(),
+  );
+  late final TextEditingController _km = TextEditingController(
+    text: '${widget.vehicle.km}',
+  );
+  final _station = TextEditingController();
+  DateTime _fuelDate = DateTime.now();
+  _VoiceState _voiceState = _VoiceState.idle;
+  String _voiceMessage =
+      'Ejemplo: hoy pagué veinte mil pesos a 12.500 por galón a los 15.000 km';
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startVoiceImmediately) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_toggleDictation());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.voiceController.clearListeners();
+    if (widget.voiceController.isListening) {
+      unawaited(widget.voiceController.cancel());
+    }
+    _amount.dispose();
+    _price.dispose();
+    _km.dispose();
+    _station.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleDictation() async {
+    if (_voiceState == _VoiceState.listening) {
+      await widget.voiceController.stop();
+      return;
+    }
+    setState(() {
+      _voiceState = _VoiceState.processing;
+      _voiceMessage = 'Preparando el dictado...';
+    });
+    try {
+      final available = await widget.voiceController.initialize(
+        onStatus: (_) {},
+        onError: (error) {
+          if (!mounted) return;
+          setState(() {
+            _voiceState = _VoiceState.error;
+            _voiceMessage = 'No se pudo escuchar: $error';
+          });
+        },
+      );
+      if (!available) {
+        setState(() {
+          _voiceState = _VoiceState.error;
+          _voiceMessage = 'El reconocimiento de voz no está disponible.';
+        });
+        return;
+      }
+      final localeId = await widget.voiceController.spanishLocaleId();
+      if (localeId == null) {
+        setState(() {
+          _voiceState = _VoiceState.error;
+          _voiceMessage = 'Instala o activa el reconocimiento de voz en español.';
+        });
+        return;
+      }
+      setState(() {
+        _voiceState = _VoiceState.listening;
+        _voiceMessage = 'Escuchando combustible...';
+      });
+      await widget.voiceController.listen(
+        localeId: localeId,
+        onResult: (words, isFinal) {
+          if (isFinal) _applyTranscript(words);
+        },
+      );
+    } catch (error) {
+      setState(() {
+        _voiceState = _VoiceState.error;
+        _voiceMessage = 'No se pudo iniciar el dictado: $error';
+      });
+    }
+  }
+
+  void _applyTranscript(String words) {
+    final draft = parseFuelVoiceText(words);
+    if (draft.amount != null) {
+      _amount.text = draft.amount!.toStringAsFixed(draft.amount! % 1 == 0 ? 0 : 2);
+    }
+    if (draft.pricePerGallon != null) {
+      _price.text =
+          draft.pricePerGallon!.toStringAsFixed(draft.pricePerGallon! % 1 == 0 ? 0 : 2);
+    }
+    if (draft.kilometers != null) _km.text = '${draft.kilometers}';
+    if (draft.station != null) _station.text = draft.station!;
+    setState(() {
+      _fuelDate = draft.date;
+      _voiceState = draft.amount == null
+          ? _VoiceState.error
+          : _VoiceState.ready;
+      _voiceMessage = draft.amount == null
+          ? 'No se detectó el monto. Revisa o vuelve a dictar.'
+          : 'Combustible interpretado. Revisa y guarda.';
+    });
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final amount = double.tryParse(_amount.text.replaceAll(',', '.')) ?? 0;
+    final price = double.tryParse(_price.text.replaceAll(',', '.')) ?? 0;
+    final odometer = int.tryParse(_km.text) ?? -1;
+    if (amount <= 0 ||
+        price <= 0 ||
+        odometer < widget.vehicle.km) {
+      setState(() => _voiceMessage =
+          'El monto y el precio deben ser positivos y el kilometraje no puede retroceder.');
+      return;
+    }
+    Navigator.of(context).pop(FuelEntry(
+      vehicleId: widget.vehicle.id,
+      date:
+          '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
+      station: _station.text.trim(),
+      amount: amount,
+      pricePerGallon: price,
+      km: odometer,
+    ));
+  }
+
+  Future<void> _pickFuelDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _fuelDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2200),
+    );
+    if (selected != null) setState(() => _fuelDate = selected);
+  }
+
+  Widget _fuelField(
+    TextEditingController controller,
+    String label, {
+    bool numeric = false,
+    bool required = false,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(
+          controller: controller,
+          keyboardType: numeric
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(labelText: label),
+          validator: required
+              ? (value) => value == null || value.trim().isEmpty
+                  ? 'Este campo es obligatorio'
+                  : null
+              : null,
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Registrar combustible'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _surface2,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _line),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Registro por voz',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(_voiceMessage,
+                                  style: const TextStyle(
+                                      color: _muted, fontSize: 12)),
+                            ),
+                            IconButton.filled(
+                              onPressed: _toggleDictation,
+                              icon: Icon(_voiceState == _VoiceState.listening
+                                  ? Icons.stop_rounded
+                                  : Icons.mic_rounded),
+                              style: IconButton.styleFrom(
+                                backgroundColor: _red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _fuelField(_amount, 'Total pagado (COP)',
+                      numeric: true, required: true),
+                  _fuelField(_price, 'Precio por galón',
+                      numeric: true, required: true),
+                  _fuelField(_km, 'Kilometraje del tablero',
+                      numeric: true, required: true),
+                  _fuelField(_station, 'Estación (opcional)'),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.calendar_month_rounded,
+                      color: _red,
+                    ),
+                    title: const Text('Fecha de la carga'),
+                    subtitle: Text(
+                      _dateLabel(
+                        '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
+                      ),
+                    ),
+                    onTap: _pickFuelDate,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(onPressed: _save, child: const Text('Guardar')),
+        ],
+      );
+}
+
 class _MaintenanceServiceDialog extends StatefulWidget {
   const _MaintenanceServiceDialog({
     required this.vehicle,
@@ -1715,6 +1979,9 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
     }
     if (draft.kilometers != null) {
       _lastKm.text = '${draft.kilometers}';
+    }
+    if (draft.cost != null) {
+      _cost.text = draft.cost!.toStringAsFixed(draft.cost! % 1 == 0 ? 0 : 2);
     }
     setState(() {
       _serviceDate = draft.date;
