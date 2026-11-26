@@ -47,7 +47,7 @@ workflows:
           test -s build/ios/ipa/App-unsigned.ipa
           ls -lh build/ios/ipa/App-unsigned.ipa
     artifacts:
-      - build/ios/ipa/App-unsigned.ipa
+      - app_flutter/build/ios/ipa/App-unsigned.ipa
 
   mi-garaje-ios-ipa:
     name: Mi Garaje - iOS IPA firmado
