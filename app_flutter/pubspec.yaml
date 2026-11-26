@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.6
   speech_to_text: ^7.5.0
+  file_picker: ^13.4.1
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +63,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/mi_moto.png
+    - assets/images/yamaha_r15.png
 
 flutter_launcher_icons:
   android: true

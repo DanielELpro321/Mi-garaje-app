@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'maintenance_voice.dart';
@@ -44,6 +48,54 @@ const _systemOverlay = SystemUiOverlayStyle(
 );
 
 String _id() => DateTime.now().microsecondsSinceEpoch.toString();
+
+String? _autoVehicleImage(String brand, String model) {
+  final b = brand.trim().toLowerCase();
+  final m = model.trim().toLowerCase();
+  if (b == 'yamaha' && m.startsWith('r15')) {
+    return 'assets/images/yamaha_r15.png';
+  }
+  return null;
+}
+
+Future<String?> _pickPngAndPersist() async {
+  final file = await FilePicker.pickFile(
+    type: FileType.custom,
+    allowedExtensions: const ['png'],
+  );
+  if (file == null) return null;
+  final path = file.path;
+  if (path == null) return null;
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.png');
+    await File(path).copy(dest.path);
+    return dest.path;
+  } catch (_) {
+    return path;
+  }
+}
+
+Widget _vehicleImage(Vehicle vehicle) {
+  final path = vehicle.imagePath;
+  if (path == null || path.isEmpty) {
+    return Icon(Icons.two_wheeler_rounded, size: 34, color: _muted);
+  }
+  if (path.startsWith('assets/')) {
+    return Image.asset(
+      path,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) =>
+          const Icon(Icons.two_wheeler_rounded, size: 34, color: _muted),
+    );
+  }
+  return Image.file(
+    File(path),
+    fit: BoxFit.contain,
+    errorBuilder: (_, _, _) =>
+        const Icon(Icons.two_wheeler_rounded, size: 34, color: _muted),
+  );
+}
 String _today() {
   final d = DateTime.now();
   return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -74,6 +126,7 @@ class Vehicle {
     required this.km,
     this.plate = '',
     this.color = '',
+    this.imagePath,
   }) : id = id ?? _id();
 
   final String id;
@@ -84,6 +137,7 @@ class Vehicle {
   int km;
   String plate;
   String color;
+  String? imagePath;
 
   String get title => '$brand $model'.trim();
 
@@ -96,6 +150,7 @@ class Vehicle {
     'km': km,
     'plate': plate,
     'color': color,
+    'imagePath': imagePath,
   };
 
   factory Vehicle.fromJson(Map<String, dynamic> json) => Vehicle(
@@ -107,6 +162,7 @@ class Vehicle {
     km: (json['km'] as num?)?.toInt() ?? 0,
     plate: json['plate'] as String? ?? '',
     color: json['color'] as String? ?? '',
+    imagePath: json['imagePath'] as String?,
   );
 }
 
@@ -1112,10 +1168,7 @@ class _GarageAppState extends State<GarageApp> {
                           borderRadius: BorderRadius.circular(16),
                           color: _surface2,
                         ),
-                        child: Image.asset(
-                          'assets/images/mi_moto.png',
-                          fit: BoxFit.contain,
-                        ),
+                        child: _vehicleImage(item),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1765,53 +1818,85 @@ class _GarageAppState extends State<GarageApp> {
     final cc = TextEditingController(text: '150');
     final km = TextEditingController(text: '0');
     final plate = TextEditingController();
+    String? pickedImagePath;
     final saved = await _showDialog<Vehicle>(
-      builder: (context) => _formDialog(
-        title: 'Agregar vehículo',
-        formKey: form,
-        fields: [
-          _field(brand, 'Marca', required: true),
-          _field(model, 'Modelo', required: true),
-          Row(
-            children: [
-              Expanded(
-                child: _field(year, 'Año', numeric: true, required: true),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => _GlassDialog(
+          title: const Text('Agregar vehículo'),
+          content: Form(
+            key: form,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _field(brand, 'Marca', required: true),
+                  _field(model, 'Modelo', required: true),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _field(year, 'Año', numeric: true, required: true),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _field(
+                          cc,
+                          'Cilindraje (cc)',
+                          numeric: true,
+                          required: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _field(km, 'Kilometraje actual', numeric: true, required: true),
+                  _field(plate, 'Placa (opcional)'),
+                  const SizedBox(height: 8),
+                  _imagePickerRow(
+                    pickedImagePath,
+                    onPick: () async {
+                      final path = await _pickPngAndPersist();
+                      if (path != null) {
+                        setDialogState(() => pickedImagePath = path);
+                      }
+                    },
+                    onClear: () => setDialogState(() => pickedImagePath = null),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _field(
-                  cc,
-                  'Cilindraje (cc)',
-                  numeric: true,
-                  required: true,
-                ),
-              ),
-            ],
-          ),
-          _field(km, 'Kilometraje actual', numeric: true, required: true),
-          _field(plate, 'Placa (opcional)'),
-        ],
-        onSubmit: () {
-          if (!form.currentState!.validate()) return;
-          final y = int.parse(year.text);
-          final c = int.parse(cc.text);
-          final k = int.parse(km.text);
-          if (y < 1950 || y > DateTime.now().year || c <= 0 || k < 0) {
-            _message('Revisa año, cilindraje y kilometraje.', isError: true);
-            return;
-          }
-          Navigator.pop(
-            context,
-            Vehicle(
-              brand: brand.text.trim(),
-              model: model.text.trim(),
-              year: y,
-              cc: c,
-              km: k,
-              plate: plate.text.trim().toUpperCase(),
             ),
-          );
-        },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!form.currentState!.validate()) return;
+                final y = int.tryParse(year.text) ?? 0;
+                final c = int.tryParse(cc.text) ?? 0;
+                final k = int.tryParse(km.text) ?? 0;
+                if (y < 1950 || y > DateTime.now().year || c <= 0 || k < 0) {
+                  _message('Revisa año, cilindraje y kilometraje.', isError: true);
+                  return;
+                }
+                final auto = _autoVehicleImage(brand.text.trim(), model.text.trim());
+                Navigator.pop(
+                  context,
+                  Vehicle(
+                    brand: brand.text.trim(),
+                    model: model.text.trim(),
+                    year: y,
+                    cc: c,
+                    km: k,
+                    plate: plate.text.trim().toUpperCase(),
+                    imagePath: auto ?? pickedImagePath,
+                  ),
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
     for (final controller in [brand, model, year, cc, km, plate]) {
@@ -1831,50 +1916,82 @@ class _GarageAppState extends State<GarageApp> {
     final cc = TextEditingController(text: '${vehicle.cc}');
     final km = TextEditingController(text: '${vehicle.km}');
     final plate = TextEditingController(text: vehicle.plate);
+    String? pickedImagePath = vehicle.imagePath;
     final saved = await _showDialog<bool>(
-      builder: (context) => _formDialog(
-        title: 'Editar vehículo',
-        formKey: form,
-        fields: [
-          _field(brand, 'Marca', required: true),
-          _field(model, 'Modelo', required: true),
-          Row(
-            children: [
-              Expanded(
-                child: _field(year, 'Año', numeric: true, required: true),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => _GlassDialog(
+          title: const Text('Editar vehículo'),
+          content: Form(
+            key: form,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _field(brand, 'Marca', required: true),
+                  _field(model, 'Modelo', required: true),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _field(year, 'Año', numeric: true, required: true),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _field(
+                          cc,
+                          'Cilindraje (cc)',
+                          numeric: true,
+                          required: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _field(km, 'Kilometraje actual', numeric: true, required: true),
+                  _field(plate, 'Placa'),
+                  const SizedBox(height: 8),
+                  _imagePickerRow(
+                    pickedImagePath,
+                    onPick: () async {
+                      final path = await _pickPngAndPersist();
+                      if (path != null) {
+                        setDialogState(() => pickedImagePath = path);
+                      }
+                    },
+                    onClear: () => setDialogState(() => pickedImagePath = null),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _field(
-                  cc,
-                  'Cilindraje (cc)',
-                  numeric: true,
-                  required: true,
-                ),
-              ),
-            ],
+            ),
           ),
-          _field(km, 'Kilometraje actual', numeric: true, required: true),
-          _field(plate, 'Placa'),
-        ],
-        onSubmit: () {
-          if (!form.currentState!.validate()) return;
-          final y = int.parse(year.text);
-          final c = int.parse(cc.text);
-          final k = int.parse(km.text);
-          if (y < 1950 || y > DateTime.now().year || c <= 0 || k < 0) {
-            _message('Revisa año, cilindraje y kilometraje.', isError: true);
-            return;
-          }
-          vehicle
-            ..brand = brand.text.trim()
-            ..model = model.text.trim()
-            ..year = y
-            ..cc = c
-            ..km = k
-            ..plate = plate.text.trim().toUpperCase();
-          Navigator.pop(context, true);
-        },
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!form.currentState!.validate()) return;
+                final y = int.tryParse(year.text) ?? 0;
+                final c = int.tryParse(cc.text) ?? 0;
+                final k = int.tryParse(km.text) ?? 0;
+                if (y < 1950 || y > DateTime.now().year || c <= 0 || k < 0) {
+                  _message('Revisa año, cilindraje y kilometraje.', isError: true);
+                  return;
+                }
+                final auto = _autoVehicleImage(brand.text.trim(), model.text.trim());
+                vehicle
+                  ..brand = brand.text.trim()
+                  ..model = model.text.trim()
+                  ..year = y
+                  ..cc = c
+                  ..km = k
+                  ..plate = plate.text.trim().toUpperCase()
+                  ..imagePath = auto ?? pickedImagePath;
+                Navigator.pop(context, true);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
     for (final controller in [brand, model, year, cc, km, plate]) {
@@ -2079,6 +2196,66 @@ class _GarageAppState extends State<GarageApp> {
           : null,
     ),
   );
+
+  Widget _imagePickerRow(
+    String? currentPath, {
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) =>
+      _Glass(
+        radius: 14,
+        tint: _surface2,
+        opacity: .4,
+        borderAlpha: .1,
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: _surface,
+              ),
+              child: currentPath == null
+                  ? const Icon(Icons.image_outlined, color: _muted)
+                  : (currentPath.startsWith('assets/')
+                      ? Image.asset(currentPath, fit: BoxFit.cover)
+                      : Image.file(File(currentPath), fit: BoxFit.cover)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Imagen de la moto (PNG)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currentPath == null
+                        ? 'Opcional. Se asigna automáticamente para Yamaha R15.'
+                        : 'Imagen seleccionada',
+                    style: const TextStyle(color: _muted, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Seleccionar PNG',
+              onPressed: onPick,
+              icon: const Icon(Icons.upload_file_rounded, color: _red),
+            ),
+            if (currentPath != null)
+              IconButton(
+                tooltip: 'Quitar imagen',
+                onPressed: onClear,
+                icon: const Icon(Icons.close_rounded, color: _muted),
+              ),
+          ],
+        ),
+      );
 
   Widget _formDialog({
     required String title,

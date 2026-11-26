@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.migaraje.mi_garaje"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
