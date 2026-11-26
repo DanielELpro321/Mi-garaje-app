@@ -988,12 +988,7 @@ class _GarageAppState extends State<GarageApp> {
           ),
         ),
         Positioned.fill(child: CustomPaint(painter: _HeroGridPainter())),
-        Image.asset(
-          'assets/images/mi_moto.png',
-          fit: BoxFit.contain,
-          errorBuilder: (_, _, _) =>
-              const Icon(Icons.two_wheeler_rounded, size: 150, color: _muted),
-        ),
+        _heroImage(vehicle),
         Positioned(
           bottom: 2,
           child: _Glass(
@@ -1017,6 +1012,36 @@ class _GarageAppState extends State<GarageApp> {
       ],
     ),
   );
+
+  Widget _heroImage(Vehicle vehicle) {
+    final path = vehicle.imagePath;
+    if (path == null || path.isEmpty) {
+      return Image.asset(
+        'assets/images/mi_moto.png',
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) =>
+            const Icon(Icons.two_wheeler_rounded, size: 150, color: _muted),
+      );
+    }
+    if (path.startsWith('assets/')) {
+      return Image.asset(
+        path,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => Image.asset(
+          'assets/images/mi_moto.png',
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+    return Image.file(
+      File(path),
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) => Image.asset(
+        'assets/images/mi_moto.png',
+        fit: BoxFit.contain,
+      ),
+    );
+  }
 
   Widget _emptyVehicleCard() => _Panel(
     padding: const EdgeInsets.all(22),
