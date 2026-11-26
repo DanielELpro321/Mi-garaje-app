@@ -1916,7 +1916,9 @@ class _GarageAppState extends State<GarageApp> {
     final cc = TextEditingController(text: '${vehicle.cc}');
     final km = TextEditingController(text: '${vehicle.km}');
     final plate = TextEditingController(text: vehicle.plate);
-    String? pickedImagePath = vehicle.imagePath;
+    final oldAuto = _autoVehicleImage(vehicle.brand, vehicle.model);
+    String? pickedImagePath =
+        (vehicle.imagePath == oldAuto) ? null : vehicle.imagePath;
     final saved = await _showDialog<bool>(
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => _GlassDialog(
