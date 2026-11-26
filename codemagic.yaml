@@ -1,3 +1,17 @@
+# Codemagic workflows para Mi Garaje (Flutter).
+#
+# IMPORTANTE para descargar el .ipa SIN que salga empaquetado como .zip:
+# - En la pagina del build, descarga el artefacto INDIVIDUAL listado en
+#   "Artifacts" (por ejemplo "MiGaraje.ipa" o "App-unsigned.ipa").
+# - NO uses el boton "Download all artifacts": Codemagic empaqueta todos los
+#   artefactos en un .zip por diseno cuando se descargan en grupo.
+# - Las rutas de artifacts se expresan desde la raiz del repositorio, por eso
+#   incluyen el prefijo "app_flutter/" aunque working_directory sea "app_flutter".
+#
+# El workflow firmado requiere firma configurada en la UI de Codemagic
+# (Apple Developer + certificado + provisioning profile) y el grupo
+# "app_store_credentials".
+
 workflows:
   mi-garaje-ios-simulator:
     name: Mi Garaje - iOS Simulator
@@ -23,7 +37,6 @@ workflows:
           ls -lh Runner-simulator.zip
     artifacts:
       - app_flutter/build/ios/iphonesimulator/Runner-simulator.zip
-      - build/ios/iphonesimulator/Runner-simulator.zip
 
   mi-garaje-ios-unsigned:
     name: Mi Garaje - iOS sin firma
@@ -48,9 +61,7 @@ workflows:
           test -s build/ios/ipa/App-unsigned.ipa
           ls -lh build/ios/ipa/App-unsigned.ipa
     artifacts:
-      - ${CM_BUILD_DIR}/app_flutter/build/ios/ipa/*.ipa
-      - app_flutter/build/ios/ipa/*.ipa
-      - build/ios/ipa/*.ipa
+      - app_flutter/build/ios/ipa/App-unsigned.ipa
 
   mi-garaje-ios-ipa:
     name: Mi Garaje - iOS IPA firmado
@@ -79,4 +90,4 @@ workflows:
           rm -f build/ios/ipa/*.zip
           ls -lh build/ios/ipa/
     artifacts:
-      - build/ios/ipa/MiGaraje.ipa
+      - app_flutter/build/ios/ipa/MiGaraje.ipa
