@@ -68,6 +68,13 @@ workflows:
         script: flutter pub get
       - name: Compilar IPA firmado
         script: flutter build ipa --release
+      - name: Verificar y renombrar IPA final
+        script: |
+          set -e
+          IPA=$(find build/ios/ipa -maxdepth 1 -name '*.ipa' | head -n 1)
+          test -n "$IPA"
+          test -s "$IPA"
+          cp "$IPA" build/ios/ipa/MiGaraje.ipa
+          ls -lh build/ios/ipa/MiGaraje.ipa
     artifacts:
-      - build/ios/ipa/*.ipa
-      - ${CM_BUILD_DIR}/app_flutter/build/ios/ipa/*.ipa
+      - build/ios/ipa/MiGaraje.ipa
