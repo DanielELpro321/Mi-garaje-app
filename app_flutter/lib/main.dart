@@ -287,7 +287,9 @@ class GarageData {
   List<ServiceEntry> services = [];
   List<VehicleDocument> documents = [];
   String owner = '';
+  String nickname = '';
   String city = '';
+  String? avatarPath;
   double pricePerGallon = 16350;
   bool notifications = true;
   bool reminders = true;
@@ -298,7 +300,9 @@ class GarageData {
     'services': services.map((e) => e.toJson()).toList(),
     'documents': documents.map((e) => e.toJson()).toList(),
     'owner': owner,
+    'nickname': nickname,
     'city': city,
+    'avatarPath': avatarPath,
     'pricePerGallon': pricePerGallon,
     'notifications': notifications,
     'reminders': reminders,
@@ -323,7 +327,9 @@ class GarageData {
           .map((e) => VehicleDocument.fromJson(Map<String, dynamic>.from(e)))
           .toList()
       ..owner = json['owner'] as String? ?? ''
+      ..nickname = json['nickname'] as String? ?? ''
       ..city = json['city'] as String? ?? ''
+      ..avatarPath = json['avatarPath'] as String?
       ..pricePerGallon = (json['pricePerGallon'] as num?)?.toDouble() ?? 16350
       ..notifications = json['notifications'] as bool? ?? true
       ..reminders = json['reminders'] as bool? ?? true;
@@ -1484,20 +1490,33 @@ class _GarageAppState extends State<GarageApp> {
       _Panel(
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 29,
-              backgroundColor: _surface2,
-              child: Text(
-                _data.owner.trim().isEmpty
-                    ? 'MG'
-                    : _data.owner
-                          .trim()
-                          .split(RegExp(r'\s+'))
-                          .take(2)
-                          .map((e) => e[0])
-                          .join()
-                          .toUpperCase(),
-                style: const TextStyle(fontWeight: FontWeight.w800),
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _surface2,
+                border: Border.all(color: Colors.white.withValues(alpha: .14)),
+              ),
+              child: ClipOval(
+                child: _data.avatarPath == null
+                    ? Center(
+                        child: Text(
+                          _data.owner.trim().isEmpty
+                              ? 'MG'
+                              : _data.owner
+                                    .trim()
+                                    .split(RegExp(r'\\s+'))
+                                    .take(2)
+                                    .map((e) => e[0])
+                                    .join()
+                                    .toUpperCase(),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      )
+                    : (_data.avatarPath!.startsWith('assets/')
+                          ? Image.asset(_data.avatarPath!, fit: BoxFit.cover)
+                          : Image.file(File(_data.avatarPath!), fit: BoxFit.cover)),
               ),
             ),
             const SizedBox(width: 14),
@@ -1512,6 +1531,11 @@ class _GarageAppState extends State<GarageApp> {
                       fontSize: 17,
                     ),
                   ),
+                  if (_data.nickname.isNotEmpty)
+                    Text(
+                      '@${_data.nickname}',
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
                   Text(
                     _data.city.isEmpty ? 'Configura tu ciudad' : _data.city,
                     style: const TextStyle(color: _muted),
@@ -2161,23 +2185,69 @@ class _GarageAppState extends State<GarageApp> {
   Future<void> _editProfile() async {
     final form = GlobalKey<FormState>();
     final name = TextEditingController(text: _data.owner);
+    final nickname = TextEditingController(text: _data.nickname);
     final city = TextEditingController(text: _data.city);
+    String? avatarPath = _data.avatarPath;
     final saved = await _showDialog<bool>(
-      builder: (context) => _formDialog(
-        title: 'Editar perfil',
-        formKey: form,
-        fields: [_field(name, 'Tu nombre'), _field(city, 'Ciudad')],
-        onSubmit: () {
-          _data
-            ..owner = name.text.trim()
-            ..city = city.text.trim();
-          Navigator.pop(context, true);
-        },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => _GlassDialog(
+          title: const Text('Editar perfil'),
+          content: Form(
+            key: form,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _profileAvatarPicker(
+                    avatarPath,
+                    onPick: () async {
+                      final path = await _pickPngAndPersist();
+                      if (path != null) {
+                        setDialogState(() => avatarPath = path);
+                      }
+                    },
+                    onClear: () => setDialogState(() => avatarPath = null),
+                  ),
+                  const SizedBox(height: 14),
+                  _field(name, 'Tu nombre', required: true),
+                  _field(nickname, 'Apodo / usuario'),
+                  _field(city, 'Ciudad'),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!form.currentState!.validate()) return;
+                if (name.text.trim().isEmpty) {
+                  _message('El nombre es obligatorio.', isError: true);
+                  return;
+                }
+                _data
+                  ..owner = name.text.trim()
+                  ..nickname = nickname.text.trim()
+                  ..city = city.text.trim()
+                  ..avatarPath = avatarPath;
+                Navigator.pop(context, true);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
     name.dispose();
+    nickname.dispose();
     city.dispose();
-    if (saved == true) await _save();
+    if (saved == true) {
+      await _save();
+      _message('Perfil actualizado');
+    }
   }
 
   Future<void> _editPrice() async {
@@ -2223,6 +2293,80 @@ class _GarageAppState extends State<GarageApp> {
           : null,
     ),
   );
+
+  Widget _profileAvatarPicker(
+    String? currentPath, {
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+  }) =>
+      Center(
+        child: Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _surface2,
+                border: Border.all(color: Colors.white.withValues(alpha: .14)),
+              ),
+              child: ClipOval(
+                child: currentPath == null
+                    ? Center(
+                        child: Text(
+                          _data.owner.trim().isEmpty
+                              ? 'MG'
+                              : _data.owner
+                                    .trim()
+                                    .split(RegExp(r'\s+'))
+                                    .take(2)
+                                    .map((e) => e[0])
+                                    .join()
+                                    .toUpperCase(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 26,
+                          ),
+                        ),
+                      )
+                    : (currentPath.startsWith('assets/')
+                          ? Image.asset(currentPath, fit: BoxFit.cover)
+                          : Image.file(File(currentPath), fit: BoxFit.cover)),
+              ),
+            ),
+            Material(
+              color: _red,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onPick,
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.camera_alt_rounded, size: 18, color: Colors.white),
+                ),
+              ),
+            ),
+            if (currentPath != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Material(
+                  color: _surface2,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onClear,
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close_rounded, size: 14, color: _muted),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
 
   Widget _imagePickerRow(
     String? currentPath, {
