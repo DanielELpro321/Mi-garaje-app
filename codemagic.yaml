@@ -1,29 +1,4 @@
 workflows:
-  mi-garaje-ios-simulator:
-    name: Mi Garaje - iOS Simulator
-    max_build_duration: 60
-    instance_type: mac_mini_m2
-    working_directory: app_flutter
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-    scripts:
-      - name: Obtener dependencias Flutter
-        script: flutter pub get
-      - name: Compilar para simulador iOS
-        script: flutter build ios --simulator --debug
-      - name: Preparar app para Appetize o BrowserStack
-        script: |
-          set -e
-          cd build/ios/iphonesimulator
-          rm -f Runner-simulator.zip
-          zip -qry Runner-simulator.zip Runner.app
-          test -s Runner-simulator.zip
-          ls -lh Runner-simulator.zip
-    artifacts:
-      - app_flutter/build/ios/iphonesimulator/Runner-simulator.zip
-
   mi-garaje-ios-unsigned:
     name: Mi Garaje - iOS sin firma
     max_build_duration: 60
@@ -47,33 +22,4 @@ workflows:
           test -s build/ios/ipa/MiGaraje-unsigned.ipa
           ls -lh build/ios/ipa/MiGaraje-unsigned.ipa
     artifacts:
-      - app_flutter/build/ios/ipa/MiGaraje-unsigned.ipa
-
-  mi-garaje-ios-ipa:
-    name: Mi Garaje - iOS IPA firmado
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-    working_directory: app_flutter
-    environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
-      groups:
-        - app_store_credentials
-    scripts:
-      - name: Obtener dependencias Flutter
-        script: flutter pub get
-      - name: Compilar IPA firmado
-        script: flutter build ipa --release
-      - name: Dejar un solo IPA final
-        script: |
-          set -e
-          IPA=$(find build/ios/ipa -maxdepth 1 -name '*.ipa' ! -name 'MiGaraje.ipa' | head -n 1)
-          test -n "$IPA"
-          test -s "$IPA"
-          cp "$IPA" build/ios/ipa/MiGaraje.ipa
-          rm -f "$IPA"
-          rm -f build/ios/ipa/*.zip
-          ls -lh build/ios/ipa/
-    artifacts:
-      - app_flutter/build/ios/ipa/MiGaraje.ipa
+      - app_flutter/build/ios/ipa/*.ipa
