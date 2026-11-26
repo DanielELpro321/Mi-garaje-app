@@ -51,3 +51,23 @@ workflows:
       - ${CM_BUILD_DIR}/app_flutter/build/ios/ipa/*.ipa
       - app_flutter/build/ios/ipa/*.ipa
       - build/ios/ipa/*.ipa
+
+  mi-garaje-ios-ipa:
+    name: Mi Garaje - iOS IPA firmado
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    working_directory: app_flutter
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      groups:
+        - app_store_credentials
+    scripts:
+      - name: Obtener dependencias Flutter
+        script: flutter pub get
+      - name: Compilar IPA firmado
+        script: flutter build ipa --release
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - ${CM_BUILD_DIR}/app_flutter/build/ios/ipa/*.ipa

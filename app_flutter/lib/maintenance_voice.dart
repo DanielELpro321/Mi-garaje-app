@@ -72,12 +72,16 @@ class MaintenanceVoiceDraft {
     required this.kilometers,
     required this.date,
     required this.cost,
+    this.isPeriodic = false,
+    this.intervalSuggested,
   });
 
   final String description;
   final int? kilometers;
   final DateTime date;
   final double? cost;
+  final bool isPeriodic;
+  final int? intervalSuggested;
 }
 
 class FuelVoiceDraft {
@@ -280,11 +284,16 @@ MaintenanceVoiceDraft parseMaintenanceVoiceText(String text, {DateTime? now}) {
       .replaceAll(RegExp(r'^[\s,.;:–-]+|[\s,.;:–-]+$'), '');
   description = _removeTrailingFiller(description);
 
+  final intervalSuggested = _extractInterval(normalized);
+  final periodic = _isPeriodicMaintenance(description, intervalSuggested);
+
   return MaintenanceVoiceDraft(
     description: description.trim(),
     kilometers: kilometers,
     date: date,
     cost: cost,
+    isPeriodic: periodic,
+    intervalSuggested: intervalSuggested,
   );
 }
 
@@ -399,6 +408,75 @@ double? _parseVoiceAmount(String value) {
   final parsed = double.tryParse(numeric);
   if (parsed != null) return parsed;
   return null;
+}
+
+
+int? _extractInterval(String normalized) {
+  final match = RegExp(
+    r'\bcada\s+(\d+(?:[.,]\s?\d{3})*|\d+)\s*(?:mil\s+)?(?:km|kilometros?)\b',
+    caseSensitive: false,
+  ).firstMatch(normalized);
+  if (match != null) {
+    final raw = match.group(1)!.replaceAll(RegExp(r'[.,\s]'), '');
+    final value = int.tryParse(raw);
+    if (value != null) {
+      // If "mil" appears after the number, multiply.
+      if (RegExp(r'\bcada\s+\d+\s+mil\b').hasMatch(normalized)) {
+        return value * 1000;
+      }
+      return value;
+    }
+  }
+  return null;
+}
+
+bool _isPeriodicMaintenance(String description, int? intervalSuggested) {
+  final lower = description.toLowerCase();
+  const eventualKeywords = [
+    'ajuste',
+    'modificacion',
+    'modificación',
+    'accesorio',
+    'reparacion',
+    'reparación',
+    'arreglo',
+    'pintura',
+    'calcomania',
+    'calcomanía',
+    'personalizacion',
+    'personalización',
+    'mod',
+  ];
+  for (final keyword in eventualKeywords) {
+    if (lower.contains(keyword)) return false;
+  }
+  if (intervalSuggested != null) return true;
+  const periodicKeywords = [
+    'aceite',
+    'filtro',
+    'freno',
+    'cadena',
+    'bujia',
+    'bujía',
+    'llanta',
+    'neumatico',
+    'neumático',
+    'kit',
+    'arrastre',
+    'valvula',
+    'válvula',
+    'refrigerante',
+    'coolant',
+    'bateria',
+    'batería',
+    'lubric',
+    'revision',
+    'revisión',
+  ];
+  for (final keyword in periodicKeywords) {
+    if (lower.contains(keyword)) return true;
+  }
+  return false;
 }
 
 String _fold(String value) => value

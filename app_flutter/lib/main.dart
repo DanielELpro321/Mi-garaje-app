@@ -4,20 +4,44 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'maintenance_voice.dart';
 
-void main() => runApp(const GarageApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarContrastEnforced: false,
+    ),
+  );
+  runApp(const GarageApp());
+}
 
-const _background = Color(0xFF090B0E);
-const _surface = Color(0xFF14181F);
-const _surface2 = Color(0xFF1B212A);
-const _line = Color(0xFF29313C);
+const _background = Color(0xFF07090D);
+const _surface = Color(0xFF12161D);
+const _surface2 = Color(0xFF1A2029);
+const _line = Color(0xFF2A3340);
 const _red = Color(0xFFE53935);
-const _muted = Color(0xFF929AA6);
+const _redGlow = Color(0xFFFF6B61);
+const _muted = Color(0xFF98A1AE);
 const _green = Color(0xFF43B65A);
 const _dataKey = 'mi_garaje_data_v1';
+const _systemOverlay = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemNavigationBarContrastEnforced: false,
+);
 
 String _id() => DateTime.now().microsecondsSinceEpoch.toString();
 String _today() {
@@ -64,26 +88,26 @@ class Vehicle {
   String get title => '$brand $model'.trim();
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'brand': brand,
-        'model': model,
-        'year': year,
-        'cc': cc,
-        'km': km,
-        'plate': plate,
-        'color': color,
-      };
+    'id': id,
+    'brand': brand,
+    'model': model,
+    'year': year,
+    'cc': cc,
+    'km': km,
+    'plate': plate,
+    'color': color,
+  };
 
   factory Vehicle.fromJson(Map<String, dynamic> json) => Vehicle(
-        id: json['id'] as String?,
-        brand: json['brand'] as String? ?? '',
-        model: json['model'] as String? ?? '',
-        year: (json['year'] as num?)?.toInt() ?? DateTime.now().year,
-        cc: (json['cc'] as num?)?.toInt() ?? 150,
-        km: (json['km'] as num?)?.toInt() ?? 0,
-        plate: json['plate'] as String? ?? '',
-        color: json['color'] as String? ?? '',
-      );
+    id: json['id'] as String?,
+    brand: json['brand'] as String? ?? '',
+    model: json['model'] as String? ?? '',
+    year: (json['year'] as num?)?.toInt() ?? DateTime.now().year,
+    cc: (json['cc'] as num?)?.toInt() ?? 150,
+    km: (json['km'] as num?)?.toInt() ?? 0,
+    plate: json['plate'] as String? ?? '',
+    color: json['color'] as String? ?? '',
+  );
 }
 
 class FuelEntry {
@@ -106,24 +130,24 @@ class FuelEntry {
   int km;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'vehicleId': vehicleId,
-        'date': date,
-        'station': station,
-        'amount': amount,
-        'pricePerGallon': pricePerGallon,
-        'km': km,
-      };
+    'id': id,
+    'vehicleId': vehicleId,
+    'date': date,
+    'station': station,
+    'amount': amount,
+    'pricePerGallon': pricePerGallon,
+    'km': km,
+  };
 
   factory FuelEntry.fromJson(Map<String, dynamic> json) => FuelEntry(
-        id: json['id'] as String?,
-        vehicleId: json['vehicleId'] as String? ?? '',
-        date: json['date'] as String? ?? _today(),
-        station: json['station'] as String? ?? '',
-        amount: (json['amount'] as num?)?.toDouble() ?? 0,
-        pricePerGallon: (json['pricePerGallon'] as num?)?.toDouble() ?? 0,
-        km: (json['km'] as num?)?.toInt() ?? 0,
-      );
+    id: json['id'] as String?,
+    vehicleId: json['vehicleId'] as String? ?? '',
+    date: json['date'] as String? ?? _today(),
+    station: json['station'] as String? ?? '',
+    amount: (json['amount'] as num?)?.toDouble() ?? 0,
+    pricePerGallon: (json['pricePerGallon'] as num?)?.toDouble() ?? 0,
+    km: (json['km'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class ServiceEntry {
@@ -131,7 +155,7 @@ class ServiceEntry {
     String? id,
     required this.vehicleId,
     required this.name,
-    required this.intervalKm,
+    this.intervalKm = 0,
     required this.lastKm,
     required this.cost,
     required this.date,
@@ -147,25 +171,27 @@ class ServiceEntry {
 
   int remaining(int currentKm) => intervalKm - (currentKm - lastKm);
 
+  bool get isPeriodic => intervalKm > 0;
+
   Map<String, Object?> toJson() => {
-        'id': id,
-        'vehicleId': vehicleId,
-        'name': name,
-        'intervalKm': intervalKm,
-        'lastKm': lastKm,
-        'cost': cost,
-        'date': date,
-      };
+    'id': id,
+    'vehicleId': vehicleId,
+    'name': name,
+    'intervalKm': intervalKm,
+    'lastKm': lastKm,
+    'cost': cost,
+    'date': date,
+  };
 
   factory ServiceEntry.fromJson(Map<String, dynamic> json) => ServiceEntry(
-        id: json['id'] as String?,
-        vehicleId: json['vehicleId'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        intervalKm: (json['intervalKm'] as num?)?.toInt() ?? 3000,
-        lastKm: (json['lastKm'] as num?)?.toInt() ?? 0,
-        cost: (json['cost'] as num?)?.toDouble() ?? 0,
-        date: json['date'] as String? ?? _today(),
-      );
+    id: json['id'] as String?,
+    vehicleId: json['vehicleId'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    intervalKm: (json['intervalKm'] as num?)?.toInt() ?? 0,
+    lastKm: (json['lastKm'] as num?)?.toInt() ?? 0,
+    cost: (json['cost'] as num?)?.toDouble() ?? 0,
+    date: json['date'] as String? ?? _today(),
+  );
 }
 
 class VehicleDocument {
@@ -182,13 +208,14 @@ class VehicleDocument {
   String expiry;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'vehicleId': vehicleId,
-        'name': name,
-        'expiry': expiry,
-      };
+    'id': id,
+    'vehicleId': vehicleId,
+    'name': name,
+    'expiry': expiry,
+  };
 
-  factory VehicleDocument.fromJson(Map<String, dynamic> json) => VehicleDocument(
+  factory VehicleDocument.fromJson(Map<String, dynamic> json) =>
+      VehicleDocument(
         id: json['id'] as String?,
         vehicleId: json['vehicleId'] as String? ?? '',
         name: json['name'] as String? ?? '',
@@ -210,16 +237,16 @@ class GarageData {
   bool reminders = true;
 
   Map<String, Object?> toJson() => {
-        'vehicles': vehicles.map((e) => e.toJson()).toList(),
-        'fuel': fuel.map((e) => e.toJson()).toList(),
-        'services': services.map((e) => e.toJson()).toList(),
-        'documents': documents.map((e) => e.toJson()).toList(),
-        'owner': owner,
-        'city': city,
-        'pricePerGallon': pricePerGallon,
-        'notifications': notifications,
-        'reminders': reminders,
-      };
+    'vehicles': vehicles.map((e) => e.toJson()).toList(),
+    'fuel': fuel.map((e) => e.toJson()).toList(),
+    'services': services.map((e) => e.toJson()).toList(),
+    'documents': documents.map((e) => e.toJson()).toList(),
+    'owner': owner,
+    'city': city,
+    'pricePerGallon': pricePerGallon,
+    'notifications': notifications,
+    'reminders': reminders,
+  };
 
   factory GarageData.fromJson(Map<String, dynamic> json) {
     final data = GarageData()
@@ -300,8 +327,9 @@ class _GarageAppState extends State<GarageApp> {
       if (!mounted) return;
       setState(() {
         _data = data;
-        _selectedVehicleId =
-            data.vehicles.isEmpty ? null : data.vehicles.first.id;
+        _selectedVehicleId = data.vehicles.isEmpty
+            ? null
+            : data.vehicles.first.id;
         _loading = false;
       });
     } catch (error) {
@@ -333,10 +361,28 @@ class _GarageAppState extends State<GarageApp> {
     if (navigator == null) {
       throw StateError('La navegación todavía no está disponible.');
     }
-    final route = DialogRoute<T>(
-      context: navigator.context,
-      builder: builder,
+    final route = PageRouteBuilder<T>(
+      opaque: false,
       barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: .52),
+      barrierLabel: 'Cerrar',
+      transitionDuration: const Duration(milliseconds: 300),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, animation, secondaryAnimation) => builder(context),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: .94, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
     final result = await navigator.push<T>(route);
     await route.completed;
@@ -355,10 +401,12 @@ class _GarageAppState extends State<GarageApp> {
   void _message(String text, {bool isError = false}) {
     ScaffoldMessenger.of(_navigatorContext)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        content: Text(text),
-        backgroundColor: isError ? _red : _surface2,
-      ));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(text),
+          backgroundColor: isError ? _red : _surface2,
+        ),
+      );
   }
 
   @override
@@ -367,32 +415,182 @@ class _GarageAppState extends State<GarageApp> {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: _background,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _red,
-        brightness: Brightness.dark,
-        surface: _surface,
-      ),
-      fontFamily: 'Roboto',
+      splashFactory: NoSplash.splashFactory,
+      colorScheme:
+          ColorScheme.fromSeed(
+            seedColor: _red,
+            brightness: Brightness.dark,
+            surface: _surface,
+          ).copyWith(
+            primary: _red,
+            onPrimary: Colors.white,
+            secondary: _redGlow,
+            onSurface: const Color(0xFFF2F5F9),
+            outline: Colors.white.withValues(alpha: .18),
+          ),
       textTheme: const TextTheme(
-        headlineMedium: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.8),
-        titleLarge: TextStyle(fontWeight: FontWeight.w700),
-        titleMedium: TextStyle(fontWeight: FontWeight.w600),
+        headlineMedium: TextStyle(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -1,
+          color: Color(0xFFF5F7FA),
+        ),
+        headlineSmall: TextStyle(
+          fontWeight: FontWeight.w800,
+          letterSpacing: -.5,
+          color: Color(0xFFF5F7FA),
+        ),
+        titleLarge: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Color(0xFFF5F7FA),
+        ),
+        titleMedium: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Color(0xFFF5F7FA),
+        ),
         bodyMedium: TextStyle(color: Color(0xFFD8DCE2)),
         labelSmall: TextStyle(color: _muted, fontWeight: FontWeight.w600),
       ),
-      snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: _surface2,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _red),
+      filledButtonTheme: FilledButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: const WidgetStatePropertyAll(Colors.white),
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          elevation: const WidgetStatePropertyAll(0),
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontWeight: FontWeight.w700, letterSpacing: .2),
+          ),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
+          overlayColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.pressed)
+                ? Colors.white.withValues(alpha: .16)
+                : null,
+          ),
+          backgroundBuilder: (context, states, child) => DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: states.contains(WidgetState.disabled)
+                    ? [_red.withValues(alpha: .28), _red.withValues(alpha: .18)]
+                    : const [_redGlow, _red, Color(0xFFB71C1C)],
+              ),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: .22),
+                width: .8,
+              ),
+              boxShadow: [
+                if (!states.contains(WidgetState.disabled))
+                  BoxShadow(
+                    color: _red.withValues(alpha: .30),
+                    blurRadius: 22,
+                    offset: const Offset(0, 9),
+                    spreadRadius: -4,
+                  ),
+              ],
+            ),
+            child: child,
+          ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: Colors.white.withValues(alpha: .045),
+          side: BorderSide(color: Colors.white.withValues(alpha: .16)),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white.withValues(alpha: .92),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          overlayColor: Colors.white.withValues(alpha: .08),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          foregroundColor: Colors.white,
+          highlightColor: Colors.white.withValues(alpha: .08),
+        ),
+      ),
+      dividerTheme: DividerThemeData(
+        color: Colors.white.withValues(alpha: .08),
+        thickness: .7,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? Colors.white : _muted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? _red.withValues(alpha: .78)
+              : Colors.white.withValues(alpha: .10),
+        ),
+        trackOutlineColor: WidgetStatePropertyAll(
+          Colors.white.withValues(alpha: .16),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _surface2.withValues(alpha: .96),
+        contentTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w500,
+        ),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: _surface2.withValues(alpha: .98),
+        surfaceTintColor: Colors.transparent,
+        elevation: 16,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: .10)),
+        ),
+        textStyle: const TextStyle(color: Colors.white),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: _surface,
+        surfaceTintColor: Colors.transparent,
+        headerBackgroundColor: Colors.transparent,
+        headerForegroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: .055),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .10)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .10)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: _red, width: 1.1),
+        ),
+        labelStyle: const TextStyle(color: _muted),
+        floatingLabelStyle: const TextStyle(color: _muted),
+        hintStyle: TextStyle(color: _muted.withValues(alpha: .7)),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: _red),
     );
 
     return MaterialApp(
@@ -400,89 +598,107 @@ class _GarageAppState extends State<GarageApp> {
       title: 'Mi Garaje',
       debugShowCheckedModeBanner: false,
       theme: theme,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _systemOverlay,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: _loading
-          ? const Scaffold(
-              body: Center(child: CircularProgressIndicator(color: _red)),
-            )
+          ? _bootScreen(const CircularProgressIndicator(color: _red))
           : _loadError != null
-              ? Scaffold(
-                  body: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(_loadError!, textAlign: TextAlign.center),
-                    ),
-                  ),
-                )
-              : Scaffold(
-                  body: SafeArea(
+          ? _bootScreen(
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _loadError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _muted),
+                ),
+              ),
+            )
+          : Scaffold(
+              extendBody: true,
+              backgroundColor: Colors.transparent,
+              body: Stack(
+                children: [
+                  const Positioned.fill(child: _AmbientBackground()),
+                  SafeArea(
                     bottom: false,
-                    child: IndexedStack(
-                      index: _tab,
-                      children: [
-                        _home(),
-                        _garage(),
-                        _maintenance(),
-                        _statistics(),
-                        _profile(),
-                      ],
-                    ),
-                  ),
-                  floatingActionButton: _tab == 2
-                      ? FloatingActionButton.extended(
-                          heroTag: 'dictate-maintenance',
-                          onPressed: () =>
-                              _addService(startVoiceImmediately: true),
-                          tooltip: 'Dictar mantenimiento',
-                          backgroundColor: _red,
-                          icon: const Icon(Icons.mic_rounded),
-                          label: const Text('Dictar mantenimiento'),
-                        )
-                      : _tab == 3
-                          ? FloatingActionButton.extended(
-                              heroTag: 'dictate-fuel',
-                              onPressed: () =>
-                                  _addFuel(startVoiceImmediately: true),
-                              tooltip: 'Dictar combustible',
-                              backgroundColor: _red,
-                              icon: const Icon(Icons.local_gas_station_rounded),
-                              label: const Text('Dictar combustible'),
-                            )
-                      : null,
-                  floatingActionButtonLocation:
-                      FloatingActionButtonLocation.endFloat,
-                  bottomNavigationBar: ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: _surface.withValues(alpha: 0.78),
-                          border: Border(
-                            top: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.08),
-                            ),
-                          ),
-                        ),
-                        child: NavigationBar(
-                          selectedIndex: _tab,
-                          onDestinationSelected: (index) =>
-                              setState(() => _tab = index),
-                          backgroundColor: Colors.transparent,
-                          indicatorColor: _red.withValues(alpha: 0.20),
-                          elevation: 0,
-                          destinations: [
-                            for (final item in _tabs)
-                              NavigationDestination(
-                                icon: Icon(item.$1),
-                                label: item.$2,
-                              ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: IndexedStack(
+                          index: _tab,
+                          children: [
+                            _home(),
+                            _garage(),
+                            _maintenance(),
+                            _statistics(),
+                            _profile(),
                           ],
                         ),
                       ),
                     ),
                   ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: 180,
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              _background.withValues(alpha: .55),
+                              _background.withValues(alpha: .96),
+                            ],
+                            stops: const [0, .55, 1],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              floatingActionButton: Padding(
+                padding: const EdgeInsets.only(bottom: 96),
+                child: switch (_tab) {
+                2 => _LiquidFab(
+                  icon: Icons.mic_rounded,
+                  label: 'Dictar mantenimiento',
+                  onTap: () => _addService(startVoiceImmediately: true),
                 ),
+                3 => _LiquidFab(
+                  icon: Icons.local_gas_station_rounded,
+                  label: 'Dictar combustible',
+                  onTap: () => _addFuel(startVoiceImmediately: true),
+                ),
+                _ => null,
+              },
+              ),
+              floatingActionButtonLocation:
+                  FloatingActionButtonLocation.endFloat,
+              bottomNavigationBar: _LiquidNavBar(
+                index: _tab,
+                tabs: _tabs,
+                onSelected: (index) => setState(() => _tab = index),
+              ),
+            ),
     );
   }
+
+  Widget _bootScreen(Widget child) => Scaffold(
+    backgroundColor: Colors.transparent,
+    body: Stack(
+      children: [
+        const Positioned.fill(child: _AmbientBackground()),
+        Center(child: child),
+      ],
+    ),
+  );
 
   Widget _home() {
     final vehicle = _vehicle;
@@ -495,19 +711,19 @@ class _GarageAppState extends State<GarageApp> {
               d.month == currentMonth.month;
         })
         .fold<double>(0, (sum, e) => sum + e.amount);
-    final services = _data.services
-        .where((e) => e.vehicleId == vehicle?.id)
-        .toList()
-      ..sort((a, b) => a.remaining(vehicle?.km ?? 0)
-          .compareTo(b.remaining(vehicle?.km ?? 0)));
-    final activity = _data.fuel
-        .where((e) => e.vehicleId == vehicle?.id)
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final services =
+        _data.services.where((e) => e.vehicleId == vehicle?.id).toList()..sort(
+          (a, b) => a
+              .remaining(vehicle?.km ?? 0)
+              .compareTo(b.remaining(vehicle?.km ?? 0)),
+        );
+    final activity =
+        _data.fuel.where((e) => e.vehicleId == vehicle?.id).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 140),
       children: [
         _greeting(),
         const SizedBox(height: 26),
@@ -521,7 +737,14 @@ class _GarageAppState extends State<GarageApp> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(vehicle.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    Text(
+                      vehicle.title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFF5F7FA),
+                          ),
+                    ),
                     const SizedBox(height: 5),
                     Text(
                       '${vehicle.year} · ${vehicle.cc} cc · ${vehicle.plate.isEmpty ? 'Sin placa' : vehicle.plate} · ${vehicle.km} km',
@@ -530,16 +753,26 @@ class _GarageAppState extends State<GarageApp> {
                   ],
                 ),
               ),
-              _pill(vehicle.km == 0 ? 'Nueva' : 'Activa', vehicle.km == 0 ? _red : _green),
+              _pill(
+                vehicle.km == 0 ? 'Nueva' : 'Activa',
+                vehicle.km == 0 ? _red : _green,
+              ),
             ],
           ),
           const SizedBox(height: 10),
           _hero(vehicle),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           Row(
             children: [
-              _metric('Próximo servicio', services.isEmpty ? '—' : '${math.max(0, services.first.remaining(vehicle.km))} km'),
+              _metric(
+                'Próximo servicio',
+                services.where((s) => s.isPeriodic).isEmpty
+                    ? '—'
+                    : '${math.max(0, services.where((s) => s.isPeriodic).reduce((a, b) => a.remaining(vehicle.km) < b.remaining(vehicle.km) ? a : b).remaining(vehicle.km))} km',
+              ),
+              const SizedBox(width: 10),
               _metric('Gasto del mes', _money(monthSpend)),
+              const SizedBox(width: 10),
               _metric('Consumo', _consumption(vehicle)),
             ],
           ),
@@ -548,32 +781,56 @@ class _GarageAppState extends State<GarageApp> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _quickAction(Icons.local_gas_station_rounded, 'Combustible', _addFuel),
+              _quickAction(
+                Icons.local_gas_station_rounded,
+                'Combustible',
+                _addFuel,
+              ),
               _quickAction(Icons.build_rounded, 'Servicio', _addService),
-              _quickAction(Icons.bar_chart_rounded, 'Gastos', () => setState(() => _tab = 3)),
-              _quickAction(Icons.description_rounded, 'Documentos', _addDocument),
+              _quickAction(
+                Icons.bar_chart_rounded,
+                'Gastos',
+                () => setState(() => _tab = 3),
+              ),
+              _quickAction(
+                Icons.description_rounded,
+                'Documentos',
+                _addDocument,
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          _sectionTitle('Mantenimiento', action: 'Ver todo', onAction: () => setState(() => _tab = 2)),
+          _sectionTitle(
+            'Mantenimiento',
+            action: 'Ver todo',
+            onAction: () => setState(() => _tab = 2),
+          ),
           const SizedBox(height: 10),
           if (services.isEmpty)
             _emptyCard('Aún no has agregado servicios')
           else
-            ...services.take(2).map((service) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _serviceTile(service, vehicle),
-                )),
+            ...services
+                .take(2)
+                .map(
+                  (service) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _serviceTile(service, vehicle),
+                  ),
+                ),
           const SizedBox(height: 18),
           _sectionTitle('Actividad reciente'),
           const SizedBox(height: 10),
           if (activity.isEmpty)
             _emptyCard('Sin movimientos todavía')
           else
-            ...activity.take(3).map((entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _activityTile(entry),
-                )),
+            ...activity
+                .take(3)
+                .map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _activityTile(entry),
+                  ),
+                ),
         ],
       ],
     );
@@ -584,8 +841,8 @@ class _GarageAppState extends State<GarageApp> {
     final hello = now.hour < 12
         ? 'Buenos días'
         : now.hour < 19
-            ? 'Buenas tardes'
-            : 'Buenas noches';
+        ? 'Buenas tardes'
+        : 'Buenas noches';
     final name = _data.owner.trim().isEmpty ? 'Tu garaje' : _data.owner.trim();
     return Row(
       children: [
@@ -594,157 +851,241 @@ class _GarageAppState extends State<GarageApp> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('$hello,', style: const TextStyle(color: _muted)),
-              Text(name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 3),
-              Text(_dateLabel(_today()), style: const TextStyle(color: _muted, fontSize: 12)),
+              Text(
+                _dateLabel(_today()),
+                style: const TextStyle(color: _muted, fontSize: 12),
+              ),
             ],
           ),
         ),
-        IconButton.filledTonal(
-          onPressed: () => setState(() => _tab = 4),
-          icon: const Icon(Icons.person_outline_rounded),
+        _Glass(
+          radius: 24,
+          blur: 12,
+          tint: _surface,
+          opacity: .58,
+          borderAlpha: .16,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => setState(() => _tab = 4),
+              child: const SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(Icons.person_outline_rounded, size: 21),
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
   Widget _hero(Vehicle vehicle) => SizedBox(
-        height: 282,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  gradient: RadialGradient(
-                    center: const Alignment(0, 0.25),
-                    radius: 0.85,
-                    colors: [
-                      _red.withValues(alpha: 0.22),
-                      const Color(0xFF171018).withValues(alpha: 0.20),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
+    height: 282,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: RadialGradient(
+                center: const Alignment(0, 0.25),
+                radius: 0.85,
+                colors: [
+                  _red.withValues(alpha: 0.22),
+                  const Color(0xFF171018).withValues(alpha: 0.20),
+                  Colors.transparent,
+                ],
               ),
             ),
-            Positioned(
-              width: 238,
-              height: 238,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: _red.withValues(alpha: 0.24)),
-                  color: _red.withValues(alpha: 0.045),
-                ),
-              ),
-            ),
-            Positioned(
-              width: 192,
-              height: 192,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: CustomPaint(painter: _HeroGridPainter()),
-            ),
-            Image.asset(
-              'assets/images/mi_moto.png',
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => const Icon(
-                Icons.two_wheeler_rounded,
-                size: 150,
-                color: _muted,
-              ),
-            ),
-            Positioned(
-              bottom: 4,
-              child: Text(
-                'TU MOTO, SIEMPRE A PUNTO',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.56),
-                  fontSize: 10,
-                  letterSpacing: 2,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        Positioned(
+          width: 238,
+          height: 238,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _red.withValues(alpha: 0.24)),
+              color: _red.withValues(alpha: 0.045),
+            ),
+          ),
+        ),
+        Positioned(
+          width: 192,
+          height: 192,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+          ),
+        ),
+        Positioned.fill(child: CustomPaint(painter: _HeroGridPainter())),
+        Image.asset(
+          'assets/images/mi_moto.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) =>
+              const Icon(Icons.two_wheeler_rounded, size: 150, color: _muted),
+        ),
+        Positioned(
+          bottom: 2,
+          child: _Glass(
+            radius: 20,
+            blur: 14,
+            tint: _background,
+            opacity: .46,
+            borderAlpha: .14,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              'TU MOTO, SIEMPRE A PUNTO',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: .70),
+                fontSize: 9.5,
+                letterSpacing: 1.8,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _emptyVehicleCard() => _Panel(
-        padding: const EdgeInsets.all(22),
+    padding: const EdgeInsets.all(22),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.two_wheeler_rounded, color: _red, size: 34),
+        const SizedBox(height: 12),
+        const Text(
+          'Tu garaje empieza aquí',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Agrega tu moto para registrar combustible, servicios y documentos.',
+          style: TextStyle(color: _muted),
+        ),
+        const SizedBox(height: 18),
+        FilledButton.icon(
+          onPressed: _addVehicle,
+          icon: const Icon(Icons.two_wheeler_rounded),
+          label: const Text('Agregar mi primera moto'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _metric(String title, String value) => Expanded(
+    child: SizedBox(
+      height: 78,
+      child: _Glass(
+        radius: 16,
+        tint: _surface,
+        opacity: .56,
+        borderAlpha: .13,
+        highlight: .09,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.two_wheeler_rounded, color: _red, size: 34),
-            const SizedBox(height: 12),
-            const Text('Tu garaje empieza aquí', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: _muted, fontSize: 10),
+            ),
             const SizedBox(height: 6),
-            const Text('Agrega tu moto para registrar combustible, servicios y documentos.', style: TextStyle(color: _muted)),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: _addVehicle,
-              icon: const Icon(Icons.two_wheeler_rounded),
-              label: const Text('Agregar mi primera moto'),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),
-      );
+      ),
+    ),
+  );
 
-  Widget _metric(String title, String value) => Expanded(
-        child: _Panel(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-          child: Column(
-            children: [
-              Text(title, textAlign: TextAlign.center, style: const TextStyle(color: _muted, fontSize: 10)),
-              const SizedBox(height: 7),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+  Widget _quickAction(
+    IconData icon,
+    String label,
+    VoidCallback action,
+  ) => Expanded(
+    child: InkWell(
+      onTap: action,
+      borderRadius: BorderRadius.circular(22),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: .14),
+                    Colors.white.withValues(alpha: .035),
+                  ],
+                ),
+                border: Border.all(color: Colors.white.withValues(alpha: .14)),
+                boxShadow: [
+                  BoxShadow(
+                    color: (label == 'Combustible' ? _red : Colors.black)
+                        .withValues(alpha: label == 'Combustible' ? .26 : .32),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -4,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _quickAction(IconData icon, String label, VoidCallback action) => Expanded(
-        child: InkWell(
-          onTap: action,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: _surface2,
-                  child: Icon(icon, color: label == 'Combustible' ? _red : Colors.white),
-                ),
-                const SizedBox(height: 7),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(label, style: const TextStyle(color: _muted, fontSize: 11)),
-                ),
-              ],
+              child: Icon(
+                icon,
+                size: 22,
+                color: label == 'Combustible' ? _redGlow : Colors.white,
+              ),
             ),
-          ),
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(color: _muted, fontSize: 10.5),
+              ),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _garage() {
     final vehicle = _vehicle;
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
       children: [
-        _pageHeader('Mi garaje', '${_data.vehicles.length} ${_data.vehicles.length == 1 ? 'vehículo' : 'vehículos'}'),
+        _pageHeader(
+          'Mi garaje',
+          '${_data.vehicles.length} ${_data.vehicles.length == 1 ? 'vehículo' : 'vehículos'}',
+        ),
         const SizedBox(height: 18),
         FilledButton.icon(
           onPressed: _addVehicle,
@@ -755,56 +1096,91 @@ class _GarageAppState extends State<GarageApp> {
         if (_data.vehicles.isEmpty)
           _emptyVehicleCard()
         else
-          ..._data.vehicles.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _Panel(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () => setState(() => _selectedVehicleId = item.id),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 78,
-                          height: 84,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: _surface2,
-                          ),
-                          child: Image.asset('assets/images/mi_moto.png', fit: BoxFit.contain),
+          ..._data.vehicles.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _Panel(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => setState(() => _selectedVehicleId = item.id),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 78,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: _surface2,
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.brand.toUpperCase(), style: const TextStyle(color: _muted, fontSize: 10, fontWeight: FontWeight.w700)),
-                              Text(item.model, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                              Text('${item.year} · ${item.cc} cc · ${item.km} km', style: const TextStyle(color: _muted, fontSize: 12)),
-                              if (item.plate.isNotEmpty)
-                                Text('Placa ${item.plate}', style: const TextStyle(color: _muted, fontSize: 12)),
-                            ],
-                          ),
+                        child: Image.asset(
+                          'assets/images/mi_moto.png',
+                          fit: BoxFit.contain,
                         ),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') _editVehicle(item);
-                            if (value == 'delete') _deleteVehicle(item);
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Editar')),
-                            PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.brand.toUpperCase(),
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              item.model,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              '${item.year} · ${item.cc} cc · ${item.km} km',
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (item.plate.isNotEmpty)
+                              Text(
+                                'Placa ${item.plate}',
+                                style: const TextStyle(
+                                  color: _muted,
+                                  fontSize: 12,
+                                ),
+                              ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'edit') _editVehicle(item);
+                          if (value == 'delete') _deleteVehicle(item);
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: 'edit', child: Text('Editar')),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              )),
+              ),
+            ),
+          ),
         if (vehicle != null) ...[
           const SizedBox(height: 8),
           _sectionTitle('Documentación'),
           const SizedBox(height: 10),
-          ..._data.documents.where((d) => d.vehicleId == vehicle.id).map(
+          ..._data.documents
+              .where((d) => d.vehicleId == vehicle.id)
+              .map(
                 (document) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _documentTile(document),
@@ -822,11 +1198,15 @@ class _GarageAppState extends State<GarageApp> {
 
   Widget _maintenance() {
     final vehicle = _vehicle;
-    final services = _data.services.where((e) => e.vehicleId == vehicle?.id).toList();
-    final docs = _data.documents.where((e) => e.vehicleId == vehicle?.id).toList();
+    final services = _data.services
+        .where((e) => e.vehicleId == vehicle?.id)
+        .toList();
+    final docs = _data.documents
+        .where((e) => e.vehicleId == vehicle?.id)
+        .toList();
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
       children: [
         _pageHeader('Mantenimiento', 'Cuida tu moto, kilómetro a kilómetro'),
         const SizedBox(height: 18),
@@ -836,9 +1216,17 @@ class _GarageAppState extends State<GarageApp> {
           _Panel(
             child: Row(
               children: [
-                const CircleAvatar(backgroundColor: Color(0x223FB950), child: Icon(Icons.speed_rounded, color: _green)),
+                const CircleAvatar(
+                  backgroundColor: Color(0x223FB950),
+                  child: Icon(Icons.speed_rounded, color: _green),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: Text('${vehicle.km} km registrados', style: const TextStyle(fontWeight: FontWeight.w700))),
+                Expanded(
+                  child: Text(
+                    '${vehicle.km} km registrados',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
                 _pill('${services.length} servicios', _red),
               ],
             ),
@@ -849,10 +1237,12 @@ class _GarageAppState extends State<GarageApp> {
           if (services.isEmpty)
             _emptyCard('Todavía no tienes servicios programados')
           else
-            ...services.map((service) => Padding(
-                  padding: const EdgeInsets.only(bottom: 9),
-                  child: _serviceTile(service, vehicle, actionable: true),
-                )),
+            ...services.map(
+              (service) => Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: _serviceTile(service, vehicle, actionable: true),
+              ),
+            ),
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: _addService,
@@ -865,10 +1255,12 @@ class _GarageAppState extends State<GarageApp> {
           if (docs.isEmpty)
             _emptyCard('Agrega SOAT, tecnomecánica u otro documento')
           else
-            ...docs.map((d) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _documentTile(d),
-                )),
+            ...docs.map(
+              (d) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _documentTile(d),
+              ),
+            ),
           OutlinedButton.icon(
             onPressed: _addDocument,
             icon: const Icon(Icons.add),
@@ -883,18 +1275,24 @@ class _GarageAppState extends State<GarageApp> {
     final now = DateTime.now();
     final monthly = List<double>.generate(6, (index) {
       final month = DateTime(now.year, now.month - 5 + index);
-      return _data.fuel.where((entry) {
-        final date = DateTime.tryParse(entry.date);
-        return date != null && date.year == month.year && date.month == month.month;
-      }).fold<double>(0, (sum, entry) => sum + entry.amount);
+      return _data.fuel
+          .where((entry) {
+            final date = DateTime.tryParse(entry.date);
+            return date != null &&
+                date.year == month.year &&
+                date.month == month.month;
+          })
+          .fold<double>(0, (sum, entry) => sum + entry.amount);
     });
     final maxValue = monthly.fold<double>(1, math.max);
     final monthTotal = monthly.last;
     final vehicle = _vehicle;
-    final fuelCount = _data.fuel.where((e) => e.vehicleId == vehicle?.id).length;
+    final fuelCount = _data.fuel
+        .where((e) => e.vehicleId == vehicle?.id)
+        .length;
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
       children: [
         _pageHeader('Estadísticas', 'Resumen de tus gastos'),
         const SizedBox(height: 18),
@@ -904,7 +1302,13 @@ class _GarageAppState extends State<GarageApp> {
             children: [
               const Text('Gasto de este mes', style: TextStyle(color: _muted)),
               const SizedBox(height: 8),
-              Text(_money(monthTotal), style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+              Text(
+                _money(monthTotal),
+                style: const TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 height: 150,
@@ -922,14 +1326,20 @@ class _GarageAppState extends State<GarageApp> {
                                 child: Align(
                                   alignment: Alignment.bottomCenter,
                                   child: FractionallySizedBox(
-                                    heightFactor: (monthly[i] / maxValue).clamp(0.06, 1),
+                                    heightFactor: (monthly[i] / maxValue).clamp(
+                                      0.06,
+                                      1,
+                                    ),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(8),
                                         gradient: LinearGradient(
                                           begin: Alignment.topCenter,
                                           end: Alignment.bottomCenter,
-                                          colors: [_red, _red.withValues(alpha: 0.34)],
+                                          colors: [
+                                            _red,
+                                            _red.withValues(alpha: 0.34),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -937,7 +1347,15 @@ class _GarageAppState extends State<GarageApp> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Text(_monthName(DateTime(now.year, now.month - 5 + i).month), style: const TextStyle(color: _muted, fontSize: 10)),
+                              Text(
+                                _monthName(
+                                  DateTime(now.year, now.month - 5 + i).month,
+                                ),
+                                style: const TextStyle(
+                                  color: _muted,
+                                  fontSize: 10,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -951,10 +1369,13 @@ class _GarageAppState extends State<GarageApp> {
         const SizedBox(height: 14),
         Row(
           children: [
-            _metric('Cargas este mes', '${_data.fuel.where((e) {
-              final d = DateTime.tryParse(e.date);
-              return d != null && d.year == now.year && d.month == now.month;
-            }).length}',),
+            _metric(
+              'Cargas este mes',
+              '${_data.fuel.where((e) {
+                final d = DateTime.tryParse(e.date);
+                return d != null && d.year == now.year && d.month == now.month;
+              }).length}',
+            ),
             _metric('Registros', '$fuelCount'),
           ],
         ),
@@ -964,7 +1385,11 @@ class _GarageAppState extends State<GarageApp> {
             children: [
               const Icon(Icons.local_gas_station_rounded, color: _red),
               const SizedBox(width: 12),
-              Expanded(child: Text('Precio configurado por galón: ${_money(_data.pricePerGallon)}')),
+              Expanded(
+                child: Text(
+                  'Precio configurado por galón: ${_money(_data.pricePerGallon)}',
+                ),
+              ),
             ],
           ),
         ),
@@ -973,147 +1398,225 @@ class _GarageAppState extends State<GarageApp> {
   }
 
   Widget _profile() => ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
-        children: [
-          _pageHeader('Perfil', 'Tu cuenta y preferencias'),
-          const SizedBox(height: 18),
-          _Panel(
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 29,
-                  backgroundColor: _surface2,
-                  child: Text(
-                    _data.owner.trim().isEmpty
-                        ? 'MG'
-                        : _data.owner.trim().split(RegExp(r'\s+')).take(2).map((e) => e[0]).join().toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_data.owner.isEmpty ? 'Motociclista' : _data.owner, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                      Text(_data.city.isEmpty ? 'Configura tu ciudad' : _data.city, style: const TextStyle(color: _muted)),
-                    ],
-                  ),
-                ),
-                IconButton(onPressed: _editProfile, icon: const Icon(Icons.edit_outlined)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          _sectionTitle('Preferencias'),
-          const SizedBox(height: 8),
-          _Panel(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                SwitchListTile(
-                  value: _data.notifications,
-                  onChanged: (v) async {
-                    _data.notifications = v;
-                    await _save();
-                  },
-                  title: const Text('Notificaciones'),
-                  activeThumbColor: _red,
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16, color: _line),
-                SwitchListTile(
-                  value: _data.reminders,
-                  onChanged: (v) async {
-                    _data.reminders = v;
-                    await _save();
-                  },
-                  title: const Text('Recordatorios de mantenimiento'),
-                  activeThumbColor: _red,
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16, color: _line),
-                ListTile(
-                  title: const Text('Precio del galón'),
-                  subtitle: Text(_money(_data.pricePerGallon)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _editPrice,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          _Panel(
-            child: const Row(
-              children: [
-                Icon(Icons.lock_outline_rounded, color: _green),
-                SizedBox(width: 12),
-                Expanded(child: Text('Tus datos se guardan localmente en este dispositivo.')),
-              ],
-            ),
-          ),
-        ],
-      );
-
-  Widget _pageHeader(String title, String subtitle) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: _muted)),
-        ],
-      );
-
-  Widget _sectionTitle(String title, {String? action, VoidCallback? onAction}) => Row(
-        children: [
-          Expanded(child: Text(title.toUpperCase(), style: const TextStyle(color: _muted, fontSize: 11, letterSpacing: 0.8, fontWeight: FontWeight.w800))),
-          if (action != null)
-            TextButton(
-              onPressed: onAction,
-              child: Text(action, style: const TextStyle(color: _red)),
-            ),
-        ],
-      );
-
-  Widget _pill(String text, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
-        ),
-        child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-      );
-
-  Widget _emptyCard(String text) => _Panel(
+    physics: const BouncingScrollPhysics(),
+    padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
+    children: [
+      _pageHeader('Perfil', 'Tu cuenta y preferencias'),
+      const SizedBox(height: 18),
+      _Panel(
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, color: _muted),
-            const SizedBox(width: 12),
-            Expanded(child: Text(text, style: const TextStyle(color: _muted))),
+            CircleAvatar(
+              radius: 29,
+              backgroundColor: _surface2,
+              child: Text(
+                _data.owner.trim().isEmpty
+                    ? 'MG'
+                    : _data.owner
+                          .trim()
+                          .split(RegExp(r'\s+'))
+                          .take(2)
+                          .map((e) => e[0])
+                          .join()
+                          .toUpperCase(),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _data.owner.isEmpty ? 'Motociclista' : _data.owner,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                    ),
+                  ),
+                  Text(
+                    _data.city.isEmpty ? 'Configura tu ciudad' : _data.city,
+                    style: const TextStyle(color: _muted),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: _editProfile,
+              icon: const Icon(Icons.edit_outlined),
+            ),
           ],
         ),
-      );
+      ),
+      const SizedBox(height: 22),
+      _sectionTitle('Preferencias'),
+      const SizedBox(height: 8),
+      _Panel(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            SwitchListTile(
+              value: _data.notifications,
+              onChanged: (v) async {
+                _data.notifications = v;
+                await _save();
+              },
+              title: const Text('Notificaciones'),
+              activeThumbColor: _red,
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16, color: _line),
+            SwitchListTile(
+              value: _data.reminders,
+              onChanged: (v) async {
+                _data.reminders = v;
+                await _save();
+              },
+              title: const Text('Recordatorios de mantenimiento'),
+              activeThumbColor: _red,
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16, color: _line),
+            ListTile(
+              title: const Text('Precio del galón'),
+              subtitle: Text(_money(_data.pricePerGallon)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _editPrice,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 22),
+      _Panel(
+        child: const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: _green),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Tus datos se guardan localmente en este dispositivo.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
 
-  Widget _serviceTile(ServiceEntry service, Vehicle vehicle, {bool actionable = false}) {
+  Widget _pageHeader(String title, String subtitle) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: Theme.of(context).textTheme.headlineMedium
+            ?.copyWith(color: const Color(0xFFF5F7FA)),
+      ),
+      const SizedBox(height: 4),
+      Text(subtitle, style: const TextStyle(color: _muted)),
+    ],
+  );
+
+  Widget _sectionTitle(
+    String title, {
+    String? action,
+    VoidCallback? onAction,
+  }) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          title.toUpperCase(),
+          style: const TextStyle(
+            color: _muted,
+            fontSize: 11,
+            letterSpacing: 0.8,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      if (action != null)
+        TextButton(
+          onPressed: onAction,
+          child: Text(action, style: const TextStyle(color: _red)),
+        ),
+    ],
+  );
+
+  Widget _pill(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(30),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [color.withValues(alpha: .22), color.withValues(alpha: .07)],
+      ),
+      border: Border.all(color: color.withValues(alpha: .32)),
+      boxShadow: [
+        BoxShadow(
+          color: color.withValues(alpha: .16),
+          blurRadius: 14,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Text(
+      text,
+      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+    ),
+  );
+
+  Widget _emptyCard(String text) => _Panel(
+    child: Row(
+      children: [
+        const Icon(Icons.info_outline_rounded, color: _muted),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(text, style: const TextStyle(color: _muted)),
+        ),
+      ],
+    ),
+  );
+
+  Widget _serviceTile(
+    ServiceEntry service,
+    Vehicle vehicle, {
+    bool actionable = false,
+  }) {
     final remaining = service.remaining(vehicle.km);
     final overdue = remaining <= 0;
-    final progress = (1 - remaining / math.max(service.intervalKm, 1)).clamp(0.0, 1.0);
+    final progress = (1 - remaining / math.max(service.intervalKm, 1)).clamp(
+      0.0,
+      1.0,
+    );
     return _Panel(
       child: Row(
         children: [
           CircleAvatar(
             radius: 18,
             backgroundColor: (overdue ? _red : _green).withValues(alpha: 0.14),
-            child: Icon(Icons.build_rounded, size: 17, color: overdue ? _red : _green),
+            child: Icon(
+              Icons.build_rounded,
+              size: 17,
+              color: overdue ? _red : _green,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(service.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                  service.name,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 4),
-                Text(overdue ? 'Vencido · ${service.intervalKm} km' : 'Faltan $remaining km', style: TextStyle(color: overdue ? _red : _muted, fontSize: 12)),
+                Text(
+                  overdue
+                      ? 'Vencido · ${service.intervalKm} km'
+                      : 'Faltan $remaining km',
+                  style: TextStyle(
+                    color: overdue ? _red : _muted,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
@@ -1158,19 +1661,36 @@ class _GarageAppState extends State<GarageApp> {
         children: [
           CircleAvatar(
             backgroundColor: (expired ? _red : _green).withValues(alpha: 0.15),
-            child: Icon(Icons.verified_user_outlined, color: expired ? _red : _green, size: 19),
+            child: Icon(
+              Icons.verified_user_outlined,
+              color: expired ? _red : _green,
+              size: 19,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(document.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-                Text('Vence ${_dateLabel(document.expiry)}', style: const TextStyle(color: _muted, fontSize: 12)),
+                Text(
+                  document.name,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'Vence ${_dateLabel(document.expiry)}',
+                  style: const TextStyle(color: _muted, fontSize: 12),
+                ),
               ],
             ),
           ),
-          Text(expired ? 'Vencido' : 'Vigente', style: TextStyle(color: expired ? _red : _green, fontSize: 11, fontWeight: FontWeight.w700)),
+          Text(
+            expired ? 'Vencido' : 'Vigente',
+            style: TextStyle(
+              color: expired ? _red : _green,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'delete') {
@@ -1178,7 +1698,9 @@ class _GarageAppState extends State<GarageApp> {
                 await _save();
               }
             },
-            itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Eliminar'))],
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+            ],
           ),
         ],
       ),
@@ -1186,34 +1708,54 @@ class _GarageAppState extends State<GarageApp> {
   }
 
   Widget _activityTile(FuelEntry entry) => _Panel(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.local_gas_station_rounded, color: _red, size: 19),
-            const SizedBox(width: 10),
-            Expanded(child: Text(entry.station.isEmpty ? 'Carga de combustible' : entry.station)),
-            Text(_money(entry.amount), style: const TextStyle(fontWeight: FontWeight.w700)),
-          ],
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    child: Row(
+      children: [
+        const Icon(Icons.local_gas_station_rounded, color: _red, size: 19),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            entry.station.isEmpty ? 'Carga de combustible' : entry.station,
+          ),
         ),
-      );
+        Text(
+          _money(entry.amount),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
+  );
 
   String _consumption(Vehicle vehicle) {
     final entries = _data.fuel.where((e) => e.vehicleId == vehicle.id).toList()
       ..sort((a, b) => a.km.compareTo(b.km));
     if (entries.length < 2) return '—';
     final distance = entries.last.km - entries.first.km;
-    final gallons = entries.skip(1).fold<double>(
-      0,
-      (sum, e) => sum + (e.pricePerGallon <= 0 ? 0 : e.amount / e.pricePerGallon),
-    );
+    final gallons = entries
+        .skip(1)
+        .fold<double>(
+          0,
+          (sum, e) =>
+              sum + (e.pricePerGallon <= 0 ? 0 : e.amount / e.pricePerGallon),
+        );
     if (distance <= 0 || gallons <= 0) return '—';
     return '${(distance / gallons).round()} km/gal';
   }
 
   String _monthName(int month) => const [
-        'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
-        'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
-      ][month - 1];
+    'ENE',
+    'FEB',
+    'MAR',
+    'ABR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AGO',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DIC',
+  ][month - 1];
 
   Future<void> _addVehicle() async {
     final form = GlobalKey<FormState>();
@@ -1230,11 +1772,22 @@ class _GarageAppState extends State<GarageApp> {
         fields: [
           _field(brand, 'Marca', required: true),
           _field(model, 'Modelo', required: true),
-          Row(children: [
-            Expanded(child: _field(year, 'Año', numeric: true, required: true)),
-            const SizedBox(width: 10),
-            Expanded(child: _field(cc, 'Cilindraje (cc)', numeric: true, required: true)),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: _field(year, 'Año', numeric: true, required: true),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _field(
+                  cc,
+                  'Cilindraje (cc)',
+                  numeric: true,
+                  required: true,
+                ),
+              ),
+            ],
+          ),
           _field(km, 'Kilometraje actual', numeric: true, required: true),
           _field(plate, 'Placa (opcional)'),
         ],
@@ -1285,11 +1838,22 @@ class _GarageAppState extends State<GarageApp> {
         fields: [
           _field(brand, 'Marca', required: true),
           _field(model, 'Modelo', required: true),
-          Row(children: [
-            Expanded(child: _field(year, 'Año', numeric: true, required: true)),
-            const SizedBox(width: 10),
-            Expanded(child: _field(cc, 'Cilindraje (cc)', numeric: true, required: true)),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: _field(year, 'Año', numeric: true, required: true),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _field(
+                  cc,
+                  'Cilindraje (cc)',
+                  numeric: true,
+                  required: true,
+                ),
+              ),
+            ],
+          ),
           _field(km, 'Kilometraje actual', numeric: true, required: true),
           _field(plate, 'Placa'),
         ],
@@ -1320,14 +1884,19 @@ class _GarageAppState extends State<GarageApp> {
   }
 
   Future<void> _deleteVehicle(Vehicle vehicle) async {
-    final ok = await _confirm('¿Eliminar ${vehicle.title}?', 'También se eliminarán sus cargas, servicios y documentos.');
+    final ok = await _confirm(
+      '¿Eliminar ${vehicle.title}?',
+      'También se eliminarán sus cargas, servicios y documentos.',
+    );
     if (!ok) return;
     _data.vehicles.removeWhere((e) => e.id == vehicle.id);
     _data.fuel.removeWhere((e) => e.vehicleId == vehicle.id);
     _data.services.removeWhere((e) => e.vehicleId == vehicle.id);
     _data.documents.removeWhere((e) => e.vehicleId == vehicle.id);
     if (_selectedVehicleId == vehicle.id) {
-      _selectedVehicleId = _data.vehicles.isEmpty ? null : _data.vehicles.first.id;
+      _selectedVehicleId = _data.vehicles.isEmpty
+          ? null
+          : _data.vehicles.first.id;
     }
     await _save();
   }
@@ -1383,12 +1952,17 @@ class _GarageAppState extends State<GarageApp> {
     DateTime expiry = DateTime.now().add(const Duration(days: 365));
     final saved = await _showDialog<VehicleDocument>(
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) => _GlassDialog(
           title: const Text('Agregar documento'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: name, decoration: const InputDecoration(labelText: 'Nombre (SOAT, tecnomecánica...)')),
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre (SOAT, tecnomecánica...)',
+                ),
+              ),
               const SizedBox(height: 14),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -1423,7 +1997,8 @@ class _GarageAppState extends State<GarageApp> {
                   VehicleDocument(
                     vehicleId: vehicle.id,
                     name: name.text.trim(),
-                    expiry: '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}',
+                    expiry:
+                        '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}',
                   ),
                 );
               },
@@ -1463,7 +2038,9 @@ class _GarageAppState extends State<GarageApp> {
 
   Future<void> _editPrice() async {
     final form = GlobalKey<FormState>();
-    final price = TextEditingController(text: _data.pricePerGallon.round().toString());
+    final price = TextEditingController(
+      text: _data.pricePerGallon.round().toString(),
+    );
     final saved = await _showDialog<bool>(
       builder: (context) => _formDialog(
         title: 'Precio del galón',
@@ -1486,52 +2063,55 @@ class _GarageAppState extends State<GarageApp> {
     String label, {
     bool numeric = false,
     bool required = false,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: TextFormField(
-          controller: controller,
-          keyboardType: numeric
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(labelText: label),
-          validator: required
-              ? (value) => value == null || value.trim().isEmpty ? 'Este campo es obligatorio' : null
-              : null,
-        ),
-      );
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: controller,
+      keyboardType: numeric
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(labelText: label),
+      validator: required
+          ? (value) => value == null || value.trim().isEmpty
+                ? 'Este campo es obligatorio'
+                : null
+          : null,
+    ),
+  );
 
   Widget _formDialog({
     required String title,
     required GlobalKey<FormState> formKey,
     required List<Widget> fields,
     required VoidCallback onSubmit,
-  }) =>
-      AlertDialog(
-        title: Text(title),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: fields),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => _navigatorKey.currentState!.pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(onPressed: onSubmit, child: const Text('Guardar')),
-        ],
-      );
+  }) => _GlassDialog(
+    title: Text(title),
+    content: Form(
+      key: formKey,
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: fields),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => _navigatorKey.currentState!.pop(),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: onSubmit, child: const Text('Guardar')),
+    ],
+  );
 
   Future<bool> _confirm(String title, String body) async =>
       await _showDialog<bool>(
-        builder: (context) => AlertDialog(
+        builder: (context) => _GlassDialog(
           title: Text(title),
           content: Text(body),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: _red),
               onPressed: () => Navigator.pop(context, true),
@@ -1631,7 +2211,8 @@ class _FuelVoiceDialogState extends State<_FuelVoiceDialog> {
       if (localeId == null) {
         setState(() {
           _voiceState = _VoiceState.error;
-          _voiceMessage = 'Instala o activa el reconocimiento de voz en español.';
+          _voiceMessage =
+              'Instala o activa el reconocimiento de voz en español.';
         });
         return;
       }
@@ -1656,11 +2237,14 @@ class _FuelVoiceDialogState extends State<_FuelVoiceDialog> {
   void _applyTranscript(String words) {
     final draft = parseFuelVoiceText(words);
     if (draft.amount != null) {
-      _amount.text = draft.amount!.toStringAsFixed(draft.amount! % 1 == 0 ? 0 : 2);
+      _amount.text = draft.amount!.toStringAsFixed(
+        draft.amount! % 1 == 0 ? 0 : 2,
+      );
     }
     if (draft.pricePerGallon != null) {
-      _price.text =
-          draft.pricePerGallon!.toStringAsFixed(draft.pricePerGallon! % 1 == 0 ? 0 : 2);
+      _price.text = draft.pricePerGallon!.toStringAsFixed(
+        draft.pricePerGallon! % 1 == 0 ? 0 : 2,
+      );
     }
     if (draft.kilometers != null) _km.text = '${draft.kilometers}';
     if (draft.station != null) _station.text = draft.station!;
@@ -1680,22 +2264,23 @@ class _FuelVoiceDialogState extends State<_FuelVoiceDialog> {
     final amount = double.tryParse(_amount.text.replaceAll(',', '.')) ?? 0;
     final price = double.tryParse(_price.text.replaceAll(',', '.')) ?? 0;
     final odometer = int.tryParse(_km.text) ?? -1;
-    if (amount <= 0 ||
-        price <= 0 ||
-        odometer < widget.vehicle.km) {
-      setState(() => _voiceMessage =
-          'El monto y el precio deben ser positivos y el kilometraje no puede retroceder.');
+    if (amount <= 0 || price <= 0 || odometer < widget.vehicle.km) {
+      setState(
+        () => _voiceMessage = 'El monto y el precio deben ser positivos y el kilometraje no puede retroceder.',
+      );
       return;
     }
-    Navigator.of(context).pop(FuelEntry(
-      vehicleId: widget.vehicle.id,
-      date:
-          '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
-      station: _station.text.trim(),
-      amount: amount,
-      pricePerGallon: price,
-      km: odometer,
-    ));
+    Navigator.of(context).pop(
+      FuelEntry(
+        vehicleId: widget.vehicle.id,
+        date:
+            '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
+        station: _station.text.trim(),
+        amount: amount,
+        pricePerGallon: price,
+        km: odometer,
+      ),
+    );
   }
 
   Future<void> _pickFuelDate() async {
@@ -1713,107 +2298,117 @@ class _FuelVoiceDialogState extends State<_FuelVoiceDialog> {
     String label, {
     bool numeric = false,
     bool required = false,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: TextFormField(
-          controller: controller,
-          keyboardType: numeric
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(labelText: label),
-          validator: required
-              ? (value) => value == null || value.trim().isEmpty
-                  ? 'Este campo es obligatorio'
-                  : null
-              : null,
-        ),
-      );
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: TextFormField(
+      controller: controller,
+      keyboardType: numeric
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(labelText: label),
+      validator: required
+          ? (value) => value == null || value.trim().isEmpty
+                ? 'Este campo es obligatorio'
+                : null
+          : null,
+    ),
+  );
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Registrar combustible'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _surface2,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _line),
+  Widget build(BuildContext context) => _GlassDialog(
+    title: const Text('Registrar combustible'),
+    content: SizedBox(
+      width: double.maxFinite,
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Glass(
+                radius: 16,
+                tint: _surface2,
+                opacity: .55,
+                borderAlpha: .12,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Registro por voz',
+                      style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        const Text('Registro por voz',
-                            style: TextStyle(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(_voiceMessage,
-                                  style: const TextStyle(
-                                      color: _muted, fontSize: 12)),
-                            ),
-                            IconButton.filled(
-                              onPressed: _toggleDictation,
-                              icon: Icon(_voiceState == _VoiceState.listening
-                                  ? Icons.stop_rounded
-                                  : Icons.mic_rounded),
-                              style: IconButton.styleFrom(
-                                backgroundColor: _red,
-                              ),
-                            ),
-                          ],
+                        Expanded(
+                          child: Text(
+                            _voiceMessage,
+                            style: const TextStyle(color: _muted, fontSize: 12),
+                          ),
+                        ),
+                        IconButton.filled(
+                          tooltip: 'Dictar por voz',
+                          onPressed: _toggleDictation,
+                          icon: Icon(
+                            _voiceState == _VoiceState.listening
+                                ? Icons.stop_rounded
+                                : Icons.mic_rounded,
+                          ),
+                          style: IconButton.styleFrom(backgroundColor: _red),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  _fuelField(_amount, 'Total pagado (COP)',
-                      numeric: true, required: true),
-                  _fuelField(_price, 'Precio por galón',
-                      numeric: true, required: true),
-                  _fuelField(_km, 'Kilometraje del tablero',
-                      numeric: true, required: true),
-                  _fuelField(_station, 'Estación (opcional)'),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.calendar_month_rounded,
-                      color: _red,
-                    ),
-                    title: const Text('Fecha de la carga'),
-                    subtitle: Text(
-                      _dateLabel(
-                        '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
-                      ),
-                    ),
-                    onTap: _pickFuelDate,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 14),
+              _fuelField(
+                _amount,
+                'Total pagado (COP)',
+                numeric: true,
+                required: true,
+              ),
+              _fuelField(
+                _price,
+                'Precio por galón',
+                numeric: true,
+                required: true,
+              ),
+              _fuelField(
+                _km,
+                'Kilometraje del tablero',
+                numeric: true,
+                required: true,
+              ),
+              _fuelField(_station, 'Estación (opcional)'),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_month_rounded, color: _red),
+                title: const Text('Fecha de la carga'),
+                subtitle: Text(
+                  _dateLabel(
+                    '${_fuelDate.year}-${_fuelDate.month.toString().padLeft(2, '0')}-${_fuelDate.day.toString().padLeft(2, '0')}',
+                  ),
+                ),
+                onTap: _pickFuelDate,
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(onPressed: _save, child: const Text('Guardar')),
-        ],
-      );
-}
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Guardar')),
+    ],
+  );
 
+}
 class _MaintenanceServiceDialog extends StatefulWidget {
   const _MaintenanceServiceDialog({
     required this.vehicle,
@@ -1831,7 +2426,6 @@ class _MaintenanceServiceDialog extends StatefulWidget {
 }
 
 class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
-  final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _interval = TextEditingController(text: '3000');
   late final TextEditingController _lastKm = TextEditingController(
@@ -1845,6 +2439,7 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
   String _latestTranscript = '';
   String? _formError;
   bool _handledTranscript = false;
+  bool _isPeriodic = true;
 
   @override
   void initState() {
@@ -1901,8 +2496,7 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
       if (!available) {
         setState(() {
           _voiceState = _VoiceState.permissionDenied;
-          _voiceMessage =
-              'No se concedió el permiso o el reconocimiento de voz no está disponible. Revisa los permisos en Ajustes.';
+          _voiceMessage = 'No se concedió el permiso o el reconocimiento de voz no está disponible. Revisa los permisos en Ajustes.';
         });
         return;
       }
@@ -1912,8 +2506,7 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
       if (localeId == null) {
         setState(() {
           _voiceState = _VoiceState.error;
-          _voiceMessage =
-              'El dispositivo no tiene reconocimiento de voz en español disponible.';
+          _voiceMessage = 'El dispositivo no tiene reconocimiento de voz en español disponible.';
         });
         return;
       }
@@ -1983,6 +2576,14 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
     if (draft.cost != null) {
       _cost.text = draft.cost!.toStringAsFixed(draft.cost! % 1 == 0 ? 0 : 2);
     }
+    _isPeriodic = draft.isPeriodic;
+    if (draft.intervalSuggested != null) {
+      _interval.text = '${draft.intervalSuggested}';
+    } else if (!_isPeriodic) {
+      _interval.text = '';
+    } else if (_interval.text.trim().isEmpty) {
+      _interval.text = '3000';
+    }
     setState(() {
       _serviceDate = draft.date;
       _voiceState = draft.description.isEmpty
@@ -1996,23 +2597,25 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
 
   void _onVoiceError(String error) {
     final normalized = error.toLowerCase();
-    final isPermissionError = normalized.contains('permission') ||
+    final isPermissionError =
+        normalized.contains('permission') ||
         normalized.contains('denied') ||
         normalized.contains('not_authorized') ||
         normalized.contains('insufficient');
     final message = isPermissionError
         ? 'Permiso de micrófono o reconocimiento denegado. Actívalo en Ajustes para dictar.'
         : normalized.contains('no_match')
-            ? 'No se entendió el dictado. Intenta de nuevo.'
-            : 'Error de reconocimiento de voz: $error';
+        ? 'No se entendió el dictado. Intenta de nuevo.'
+        : 'Error de reconocimiento de voz: $error';
     _showVoiceError(message, permissionDenied: isPermissionError);
   }
 
   void _showVoiceError(String message, {bool permissionDenied = false}) {
     if (!mounted) return;
     setState(() {
-      _voiceState =
-          permissionDenied ? _VoiceState.permissionDenied : _VoiceState.error;
+      _voiceState = permissionDenied
+          ? _VoiceState.permissionDenied
+          : _VoiceState.error;
       _voiceMessage = message;
     });
   }
@@ -2028,21 +2631,31 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
   }
 
   void _save() {
-    if (!_formKey.currentState!.validate()) return;
-    final every = int.tryParse(_interval.text) ?? 0;
+    final name = _name.text.trim();
     final last = int.tryParse(_lastKm.text) ?? -1;
-    if (every <= 0 || last < 0 || last > widget.vehicle.km) {
+    if (name.isEmpty) {
       setState(() {
-        _formError =
-            'El intervalo debe ser positivo y el kilometraje no puede superar los ${widget.vehicle.km} km registrados en la moto.';
+        _formError = 'Describe el trabajo realizado antes de guardar.';
       });
       return;
+    }
+    if (last < 0 || last > widget.vehicle.km) {
+      setState(() {
+        _formError =
+            'El kilometraje no puede superar los ${widget.vehicle.km} km registrados en la moto.';
+      });
+      return;
+    }
+    var interval = 0;
+    if (_isPeriodic) {
+      interval = int.tryParse(_interval.text) ?? 0;
+      if (interval <= 0) interval = 3000;
     }
     Navigator.of(context).pop(
       ServiceEntry(
         vehicleId: widget.vehicle.id,
         name: _name.text.trim(),
-        intervalKm: every,
+        intervalKm: interval,
         lastKm: last,
         cost: double.tryParse(_cost.text.replaceAll(',', '.')) ?? 0,
         date: _dateIso(_serviceDate),
@@ -2052,29 +2665,6 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
 
   String _dateIso(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
-  Widget _textField(
-    TextEditingController controller,
-    String label, {
-    bool numeric = false,
-    bool required = false,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: TextFormField(
-          controller: controller,
-          keyboardType: numeric
-              ? const TextInputType.numberWithOptions(decimal: true)
-              : TextInputType.text,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(labelText: label),
-          validator: required
-              ? (value) => value == null || value.trim().isEmpty
-                  ? 'Este campo es obligatorio'
-                  : null
-              : null,
-        ),
-      );
 
   Color get _voiceColor {
     switch (_voiceState) {
@@ -2092,140 +2682,233 @@ class _MaintenanceServiceDialogState extends State<_MaintenanceServiceDialog> {
   }
 
   IconData get _voiceIcon => switch (_voiceState) {
-        _VoiceState.listening => Icons.stop_rounded,
-        _VoiceState.processing => Icons.hourglass_top_rounded,
-        _VoiceState.ready => Icons.check_circle_outline_rounded,
-        _VoiceState.permissionDenied => Icons.mic_off_rounded,
-        _VoiceState.error => Icons.error_outline_rounded,
-        _VoiceState.idle => Icons.mic_none_rounded,
-      };
+    _VoiceState.listening => Icons.stop_rounded,
+    _VoiceState.processing => Icons.hourglass_top_rounded,
+    _VoiceState.ready => Icons.check_circle_outline_rounded,
+    _VoiceState.permissionDenied => Icons.mic_off_rounded,
+    _VoiceState.error => Icons.error_outline_rounded,
+    _VoiceState.idle => Icons.mic_none_rounded,
+  };
 
   String get _voiceButtonLabel => switch (_voiceState) {
-        _VoiceState.listening => 'Detener dictado',
-        _VoiceState.processing => 'Procesando dictado',
-        _VoiceState.ready => 'Volver a dictar',
-        _VoiceState.permissionDenied => 'Reintentar dictado',
-        _VoiceState.error => 'Reintentar dictado',
-        _VoiceState.idle => 'Dictar mantenimiento',
-      };
+    _VoiceState.listening => 'Detener dictado',
+    _VoiceState.processing => 'Procesando dictado',
+    _VoiceState.ready => 'Volver a dictar',
+    _VoiceState.permissionDenied => 'Reintentar dictado',
+    _VoiceState.error => 'Reintentar dictado',
+    _VoiceState.idle => 'Dictar mantenimiento',
+  };
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Registrar mantenimiento'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => _GlassDialog(
+    title: const Text('Registrar mantenimiento'),
+    content: SizedBox(
+      width: double.maxFinite,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _voicePanel(),
+            const SizedBox(height: 16),
+            // Periodic toggle
+            _Glass(
+              radius: 16,
+              tint: _surface2,
+              opacity: .45,
+              borderAlpha: .10,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
                 children: [
-                  _voicePanel(),
-                  const SizedBox(height: 14),
-                  _textField(_name, 'Trabajo realizado', required: true),
-                  _textField(
-                    _interval,
-                    'Intervalo de mantenimiento (km)',
-                    numeric: true,
-                    required: true,
-                  ),
-                  _textField(
-                    _lastKm,
-                    'Kilometraje del servicio',
-                    numeric: true,
-                    required: true,
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading:
-                        const Icon(Icons.calendar_month_rounded, color: _red),
-                    title: const Text('Fecha del mantenimiento'),
-                    subtitle: Text(_dateLabel(_serviceDate.toIso8601String())),
-                    onTap: _pickDate,
-                  ),
-                  _textField(_cost, 'Costo del servicio (opcional)',
-                      numeric: true),
-                  if (_formError != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          _formError!,
-                          style: const TextStyle(color: _red, fontSize: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Mantenimiento periódico',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
-                      ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Activa para definir un intervalo de km.',
+                          style: TextStyle(color: _muted, fontSize: 11),
+                        ),
+                      ],
                     ),
+                  ),
+                  Switch(
+                    value: _isPeriodic,
+                    onChanged: (value) => setState(() {
+                      _isPeriodic = value;
+                      if (!value) {
+                        _interval.text = '';
+                      } else if (_interval.text.trim().isEmpty) {
+                        _interval.text = '3000';
+                      }
+                    }),
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(onPressed: _save, child: const Text('Guardar')),
-        ],
-      );
-
-  Widget _voicePanel() => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _surface2,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Registro por voz',
-                    style: TextStyle(
-                      color: _voiceColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                IconButton.filled(
-                  tooltip: _voiceButtonLabel,
-                  onPressed: _voiceState == _VoiceState.processing
-                      ? null
-                      : _toggleDictation,
-                  style: IconButton.styleFrom(
-                    backgroundColor: _voiceState == _VoiceState.listening
-                        ? _red
-                        : _line,
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: Icon(_voiceIcon),
-                ),
-              ],
-            ),
-            if (_voiceState == _VoiceState.processing)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: LinearProgressIndicator(minHeight: 3),
-              ),
+            const SizedBox(height: 14),
             Text(
-              _voiceMessage,
-              style: TextStyle(color: _voiceColor, fontSize: 12),
-            ),
-            if (_latestTranscript.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Escuchado: “$_latestTranscript”',
-                style: const TextStyle(color: _muted, fontSize: 12),
+              'Datos reconocidos (revisa y corrige)',
+              style: const TextStyle(
+                color: _muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .6,
               ),
-            ],
+            ),
+            const SizedBox(height: 8),
+            _previewField(_name, 'Trabajo realizado', required: true),
+            _previewField(
+              _lastKm,
+              'Kilometraje del servicio',
+              numeric: true,
+            ),
+            _previewField(_cost, 'Costo del servicio (opcional)', numeric: true),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_month_rounded, color: _red),
+              title: const Text('Fecha del mantenimiento'),
+              subtitle: Text(_dateLabel(_serviceDate.toIso8601String())),
+              onTap: _pickDate,
+            ),
+            if (_isPeriodic)
+              _previewField(
+                _interval,
+                'Intervalo de mantenimiento (km)',
+                numeric: true,
+              )
+            else
+              _Glass(
+                radius: 16,
+                tint: _surface2,
+                opacity: .35,
+                borderAlpha: .08,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: const Row(
+                  children: [
+                    Icon(Icons.event_repeat_rounded, color: _muted, size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Intervalo: No aplica / Eventual',
+                        style: TextStyle(color: _muted, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_formError != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Text(
+                    _formError!,
+                    style: const TextStyle(color: _red, fontSize: 12),
+                  ),
+                ),
+              ),
           ],
         ),
-      );
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancelar'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Guardar')),
+    ],
+  );
+
+  Widget _previewField(
+    TextEditingController controller,
+    String label, {
+    bool numeric = false,
+    bool required = false,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: TextField(
+      controller: controller,
+      keyboardType: numeric
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: .04),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .10)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: .10)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _red, width: 1.1),
+        ),
+      ),
+    ),
+  );
+
+  Widget _voicePanel() => _Glass(
+    radius: 18,
+    tint: _surface2,
+    opacity: .55,
+    borderAlpha: .12,
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Registro por voz',
+                style: TextStyle(
+                  color: _voiceColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton.filled(
+              tooltip: _voiceButtonLabel,
+              onPressed: _voiceState == _VoiceState.processing
+                  ? null
+                  : _toggleDictation,
+              style: IconButton.styleFrom(
+                backgroundColor: _voiceState == _VoiceState.listening
+                    ? _red
+                    : _line,
+                foregroundColor: Colors.white,
+              ),
+              icon: Icon(_voiceIcon),
+            ),
+          ],
+        ),
+        if (_voiceState == _VoiceState.processing)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        Text(_voiceMessage, style: TextStyle(color: _voiceColor, fontSize: 12)),
+        if (_latestTranscript.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Escuchado: “$_latestTranscript”',
+            style: const TextStyle(color: _muted, fontSize: 12),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 class _Panel extends StatelessWidget {
@@ -2235,15 +2918,464 @@ class _Panel extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: _surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: _line.withValues(alpha: 0.76)),
+  Widget build(BuildContext context) => _Glass(
+    radius: 22,
+    tint: _surface,
+    opacity: .56,
+    borderAlpha: .13,
+    highlight: .09,
+    padding: padding,
+    child: child,
+  );
+}
+
+/// A soft, frosted surface inspired by iOS 26 Liquid Glass: a translucent
+/// tint, a backdrop blur, a rim light and a diagonal specular sheen.
+class _Glass extends StatelessWidget {
+  const _Glass({
+    required this.child,
+    this.radius = 24,
+    this.blur = 0,
+    this.tint = _surface,
+    this.opacity = .58,
+    this.padding = EdgeInsets.zero,
+    this.borderAlpha = .14,
+    this.highlight = .10,
+    this.shadow = false,
+    this.glow,
+  });
+
+  final Widget child;
+  final double radius;
+  final double blur;
+  final Color tint;
+  final double opacity;
+  final EdgeInsetsGeometry padding;
+  final double borderAlpha;
+  final double highlight;
+  final bool shadow;
+  final Color? glow;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderRadius = BorderRadius.circular(radius);
+    final midTint = Color.lerp(tint, Colors.white, .03) ?? tint;
+
+    Widget surface = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: highlight),
+            midTint.withValues(alpha: opacity),
+            tint.withValues(alpha: opacity * .82),
+          ],
+          stops: const [0, .38, 1],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(padding: padding, child: child),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: borderAlpha),
+          width: .8,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: borderRadius,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: .10),
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: .025),
+                    ],
+                    stops: const [0, .45, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: radius * .8,
+            right: radius * .8,
+            child: Container(
+              height: .9,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    Colors.white.withValues(alpha: .45),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(padding: padding, child: child),
+        ],
+      ),
+    );
+
+    if (blur > 0) {
+      surface = BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        child: surface,
       );
+    }
+    surface = ClipRRect(borderRadius: borderRadius, child: surface);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          if (shadow)
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .48),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+              spreadRadius: -6,
+            ),
+          if (glow != null)
+            BoxShadow(
+              color: glow!.withValues(alpha: .20),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+              spreadRadius: -10,
+            ),
+        ],
+      ),
+      child: surface,
+    );
+  }
+}
+
+class _AmbientBackground extends StatelessWidget {
+  const _AmbientBackground();
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF0C1016), Color(0xFF07090D), Color(0xFF05070A)],
+          stops: [0, .42, 1],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -190,
+            right: -130,
+            child: _Glow(color: _red.withValues(alpha: .30), size: 420),
+          ),
+          Positioned(
+            top: 150,
+            left: -190,
+            child: _Glow(
+              color: const Color(0xFF2F6BFF).withValues(alpha: .13),
+              size: 380,
+            ),
+          ),
+          Positioned(
+            bottom: -180,
+            right: -120,
+            child: _Glow(
+              color: const Color(0xFF8E2DE2).withValues(alpha: .10),
+              size: 380,
+            ),
+          ),
+          Positioned(
+            bottom: 60,
+            left: -120,
+            child: _Glow(
+              color: const Color(0xFF00C2A8).withValues(alpha: .07),
+              size: 320,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _Glow extends StatelessWidget {
+  const _Glow({required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+    ),
+  );
+}
+
+class _LiquidNavBar extends StatelessWidget {
+  const _LiquidNavBar({
+    required this.index,
+    required this.tabs,
+    required this.onSelected,
+  });
+
+  final int index;
+  final List<(IconData, String)> tabs;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+    child: SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 2),
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: _Glass(
+            radius: 34,
+            blur: 30,
+            tint: const Color(0xFF0A0D12),
+            opacity: .60,
+            borderAlpha: .20,
+            highlight: .13,
+            shadow: true,
+            glow: _red,
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Row(
+                children: [
+                  for (var i = 0; i < tabs.length; i++)
+                    Expanded(
+                      child: _NavItem(
+                        key: ValueKey('nav-${tabs[i].$2}'),
+                        icon: tabs[i].$1,
+                        label: tabs[i].$2,
+                        selected: i == index,
+                        onTap: () => onSelected(i),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: label,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        height: 54,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(27),
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    _red.withValues(alpha: .30),
+                    _red.withValues(alpha: .10),
+                  ],
+                )
+              : null,
+          border: Border.all(
+            color: selected ? _red.withValues(alpha: .42) : Colors.transparent,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: _red.withValues(alpha: .22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                    spreadRadius: -4,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ExcludeSemantics(child: Icon(icon, size: 20, color: selected ? Colors.white : _muted)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9.5,
+                letterSpacing: .1,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                color: selected ? Colors.white : _muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _LiquidFab extends StatelessWidget {
+  const _LiquidFab({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    child: _Glass(
+      radius: 28,
+      blur: 24,
+      tint: _red,
+      opacity: .34,
+      borderAlpha: .34,
+      highlight: .18,
+      glow: _red,
+      shadow: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 19, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _GlassDialog extends StatelessWidget {
+  const _GlassDialog({this.title, this.content, this.actions});
+
+  final Widget? title;
+  final Widget? content;
+  final List<Widget>? actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * .78;
+    final buttons = actions;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      child: SizedBox(
+        width: double.maxFinite,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 440, maxHeight: maxHeight),
+          child: _Glass(
+            radius: 30,
+            blur: 32,
+            tint: const Color(0xFF0A0D12),
+            opacity: .78,
+            borderAlpha: .20,
+            highlight: .14,
+            shadow: true,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (title != null)
+                    DefaultTextStyle(
+                      style: const TextStyle(
+                        color: Color(0xFFF5F7FA),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -.3,
+                      ),
+                      child: title!,
+                    ),
+                  if (title != null) const SizedBox(height: 16),
+                  if (content != null)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: content!,
+                      ),
+                    ),
+                  if (buttons != null && buttons.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: buttons,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HeroGridPainter extends CustomPainter {
@@ -2254,7 +3386,11 @@ class _HeroGridPainter extends CustomPainter {
       ..strokeWidth = 0.7;
     for (var i = 0; i < 6; i++) {
       final x = size.width * (0.08 + i * 0.16);
-      canvas.drawLine(Offset(x, size.height), Offset(size.width * (0.43 + i * 0.035), 0), paint);
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(size.width * (0.43 + i * 0.035), 0),
+        paint,
+      );
     }
     for (var i = 1; i < 5; i++) {
       final y = size.height * i / 5;

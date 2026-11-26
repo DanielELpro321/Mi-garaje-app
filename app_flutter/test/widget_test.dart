@@ -4,7 +4,9 @@ import 'package:mi_garaje/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  testWidgets('empty garage shows onboarding and section navigation', (tester) async {
+  testWidgets('empty garage shows onboarding and section navigation', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const GarageApp());
     await tester.pumpAndSettle();
@@ -14,8 +16,9 @@ void main() {
     expect(find.text('Servicio'), findsOneWidget);
   });
 
-  testWidgets('first motorcycle button opens and saves the motorcycle form',
-      (tester) async {
+  testWidgets('first motorcycle button opens and saves the motorcycle form', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const GarageApp());
     await tester.pumpAndSettle();
@@ -34,8 +37,9 @@ void main() {
     expect(find.text('Honda CB 125'), findsOneWidget);
   });
 
-  testWidgets('floating voice button opens the maintenance form',
-      (tester) async {
+  testWidgets('floating voice button opens the maintenance form', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const GarageApp());
     await tester.pumpAndSettle();
@@ -47,7 +51,7 @@ void main() {
     await tester.tap(find.text('Guardar'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Servicio'));
+    await tester.tap(find.byKey(const ValueKey('nav-Servicio')));
     await tester.pumpAndSettle();
     expect(find.text('Dictar mantenimiento'), findsOneWidget);
 
