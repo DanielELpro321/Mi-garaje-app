@@ -9,17 +9,19 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
-      - name: Obtener dependencias Flutter
-        script: flutter pub get
-      - name: Compilar iOS release sin firma
-        script: flutter build ios --release --no-codesign
+      - name: Instalar dependencias
+        script: |
+          flutter pub get
+      - name: Compilar app iOS sin firma
+        script: |
+          flutter build ios --release --no-codesign
       - name: Empaquetar IPA sin firma
         script: |
-          set -e
           rm -rf build/ios/ipa && mkdir -p build/ios/ipa/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
-          (cd build/ios/ipa && zip -qry MiGaraje-unsigned.ipa Payload && rm -rf Payload)
-          test -s build/ios/ipa/MiGaraje-unsigned.ipa
-          ls -lh build/ios/ipa/MiGaraje-unsigned.ipa
+          cd build/ios/ipa && zip -qry App-unsigned.ipa Payload && rm -rf Payload
+          test -s build/ios/ipa/App-unsigned.ipa
+          ls -lh build/ios/ipa/App-unsigned.ipa
     artifacts:
+      - build/ios/ipa/*.ipa
       - app_flutter/build/ios/ipa/*.ipa
