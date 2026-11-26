@@ -994,7 +994,17 @@ class _GarageAppState extends State<GarageApp> {
           ),
         ),
         Positioned.fill(child: CustomPaint(painter: _HeroGridPainter())),
-        _heroImage(vehicle),
+        _heroImage(
+          vehicle,
+          onPick: () async {
+            final path = await _pickPngAndPersist();
+            if (path != null) {
+              vehicle.imagePath = path;
+              await _save();
+              if (mounted) setState(() {});
+            }
+          },
+        ),
         Positioned(
           bottom: 2,
           child: _Glass(
@@ -1019,14 +1029,26 @@ class _GarageAppState extends State<GarageApp> {
     ),
   );
 
-  Widget _heroImage(Vehicle vehicle) {
+  Widget _heroImage(Vehicle vehicle, {VoidCallback? onPick}) {
     final path = vehicle.imagePath;
+    final isR15 = _autoVehicleImage(vehicle.brand, vehicle.model) != null;
     if (path == null || path.isEmpty) {
-      return Image.asset(
-        'assets/images/mi_moto.png',
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) =>
-            const Icon(Icons.two_wheeler_rounded, size: 150, color: _muted),
+      if (isR15) {
+        return Image.asset(
+          'assets/images/yamaha_r15.png',
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => Image.asset(
+            'assets/images/mi_moto.png',
+            fit: BoxFit.contain,
+          ),
+        );
+      }
+      return Center(
+        child: FilledButton.icon(
+          onPressed: onPick,
+          icon: const Icon(Icons.upload_file_rounded),
+          label: const Text('Elegir foto'),
+        ),
       );
     }
     if (path.startsWith('assets/')) {
