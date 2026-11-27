@@ -951,7 +951,7 @@ class _GarageAppState extends State<GarageApp> {
                 ],
               ),
               floatingActionButton: Padding(
-                padding: const EdgeInsets.only(bottom: 96),
+                padding: const EdgeInsets.only(bottom: 108),
                 child: switch (_tab) {
                 2 => _LiquidFab(
                   icon: Icons.mic_rounded,
@@ -1560,7 +1560,7 @@ class _GarageAppState extends State<GarageApp> {
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
       children: [
         _pageHeader('Mantenimiento', 'Cuida tu moto, kilómetro a kilómetro'),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         if (vehicle == null)
           _emptyVehicleCard()
         else ...[
@@ -1582,9 +1582,9 @@ class _GarageAppState extends State<GarageApp> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 24),
           _sectionTitle('Plan de mantenimiento'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           if (services.isEmpty)
             _emptyCard('Todavía no tienes servicios programados')
           else
@@ -1594,15 +1594,15 @@ class _GarageAppState extends State<GarageApp> {
                 child: _serviceTile(service, vehicle, actionable: true),
               ),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
           FilledButton.icon(
             onPressed: _addService,
             icon: const Icon(Icons.add),
             label: const Text('Registrar mantenimiento'),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           _sectionTitle('Documentos y vencimientos'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           if (docs.isEmpty)
             _emptyCard('Agrega SOAT, tecnomecánica u otro documento')
           else
@@ -1646,7 +1646,7 @@ class _GarageAppState extends State<GarageApp> {
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 140),
       children: [
         _pageHeader('Estadísticas', 'Resumen de tus gastos'),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         _Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1660,7 +1660,7 @@ class _GarageAppState extends State<GarageApp> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               SizedBox(
                 height: 150,
                 child: Row(
@@ -1744,7 +1744,7 @@ class _GarageAppState extends State<GarageApp> {
             ],
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 32),
         _sectionTitle('Gastos y reparaciones', action: 'Agregar', onAction: _addExpense),
         const SizedBox(height: 10),
         if (_data.expenses.isEmpty)
