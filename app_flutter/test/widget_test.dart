@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(const GarageApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Tu garaje empieza aquí'), findsOneWidget);
+    expect(find.text('Tu garaje empieza aqu\u00ed'), findsOneWidget);
     expect(find.text('Agregar mi primera moto'), findsOneWidget);
     expect(find.text('Servicio'), findsOneWidget);
   });
@@ -28,7 +28,7 @@ void main() {
     await tester.tap(addButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Agregar vehículo'), findsOneWidget);
+    expect(find.text('Agregar veh\u00edculo'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).at(0), 'Honda');
     await tester.enterText(find.byType(TextFormField).at(1), 'CB 125');
     await tester.tap(find.text('Guardar'));
