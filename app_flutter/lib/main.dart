@@ -102,47 +102,52 @@ Future<String?> _pickPngAndPersist() async {
   }
 
   // 3) Intentar quitar el fondo automaticamente; si falla, conservar original.
+  debugPrint('[PICK] originalPath=$originalPath');
   final processed = await _removeBackground(originalPath);
-  return processed ?? originalPath;
+  debugPrint('[PICK] processed=$processed');
+  final result = processed ?? originalPath;
+  debugPrint('[PICK] final returned=$result');
+  return result;
 }
 
 Future<String?> _removeBackground(String sourcePath) async {
+  debugPrint('[BG-REMOVE] start: $sourcePath');
   try {
     final bytes = await File(sourcePath).readAsBytes();
+    debugPrint('[BG-REMOVE] read bytes: ${bytes.length}');
     final image = img.decodeImage(bytes);
-    if (image == null) return null;
+    if (image == null) {
+      debugPrint('[BG-REMOVE] decodeImage returned null');
+      return null;
+    }
+    debugPrint('[BG-REMOVE] decoded: ${image.width}x${image.height}');
 
-    // Flood-fill desde las 4 esquinas eliminando pixeles similares al color de fondo.
     final bg = _cornerColor(image);
-    final visited = List.generate(image.height, (_) => List<bool>.filled(image.width, false));
-    final queue = <(int, int)>[];
-    void enqueue(int x, int y) {
-      if (x < 0 || y < 0 || x >= image.width || y >= image.height) return;
-      if (visited[y][x]) return;
-      if (!_similar(image.getPixel(x, y), bg)) return;
-      visited[y][x] = true;
-      queue.add((x, y));
-    }
-    enqueue(0, 0);
-    enqueue(image.width - 1, 0);
-    enqueue(0, image.height - 1);
-    enqueue(image.width - 1, image.height - 1);
+    debugPrint('[BG-REMOVE] corner color: r=${bg.r} g=${bg.g} b=${bg.b}');
 
-    while (queue.isNotEmpty) {
-      final (x, y) = queue.removeLast();
-      image.setPixelRgba(x, y, 0, 0, 0, 0);
-      enqueue(x + 1, y);
-      enqueue(x - 1, y);
-      enqueue(x, y + 1);
-      enqueue(x, y - 1);
+    // Eliminar todos los pixeles similares al color de fondo (no solo conectados),
+    // para que funcione aunque el fondo no toque las esquinas.
+    int removed = 0;
+    for (int y = 0; y < image.height; y++) {
+      for (int x = 0; x < image.width; x++) {
+        final px = image.getPixel(x, y);
+        if (_similar(px, bg)) {
+          image.setPixelRgba(x, y, 0, 0, 0, 0);
+          removed++;
+        }
+      }
     }
+    debugPrint('[BG-REMOVE] removed pixels: $removed / ${image.width * image.height}');
 
     final dir = await getApplicationDocumentsDirectory();
     final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.png');
     final pngBytes = img.encodePng(image);
     await dest.writeAsBytes(pngBytes);
+    debugPrint('[BG-REMOVE] saved: ${dest.path} (${pngBytes.length} bytes)');
     return dest.path;
-  } catch (_) {
+  } catch (e, st) {
+    debugPrint('[BG-REMOVE] error: $e');
+    debugPrint('[BG-REMOVE] stack: $st');
     return null;
   }
 }
@@ -163,7 +168,7 @@ bool _similar(img.Pixel pixel, img.Color bg) {
   final dr = (pixel.r - bg.r).abs();
   final dg = (pixel.g - bg.g).abs();
   final db = (pixel.b - bg.b).abs();
-  return (dr + dg + db) < 60;
+  return (dr + dg + db) < 80;
 }
 
 
