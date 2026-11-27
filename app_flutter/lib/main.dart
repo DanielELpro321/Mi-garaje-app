@@ -952,7 +952,7 @@ class _GarageAppState extends State<GarageApp> {
               ),
               floatingActionButton: Padding(
                 padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 68,
+                  bottom: MediaQuery.of(context).padding.bottom + 50,
                 ),
                 child: switch (_tab) {
                 2 => _LiquidFab(
