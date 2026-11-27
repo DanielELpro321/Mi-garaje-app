@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -60,6 +61,8 @@ String? _autoVehicleImage(String brand, String model) {
 }
 
 Future<String?> _pickPngAndPersist() async {
+  String? originalPath;
+
   // 1) Intentar galeria/camara con image_picker (convierte HEIC a JPEG).
   try {
     final picker = ImagePicker();
@@ -71,31 +74,98 @@ Future<String?> _pickPngAndPersist() async {
       final dir = await getApplicationDocumentsDirectory();
       final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.jpg');
       await File(picked.path).copy(dest.path);
-      return dest.path;
+      originalPath = dest.path;
     }
   } catch (_) {
     // cae al selector de archivos
   }
 
   // 2) Respaldo: selector de archivos (PNG/JPG/JPEG/HEIC/HEIF).
+  if (originalPath == null) {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['png', 'jpg', 'jpeg', 'heic', 'heif'],
+      );
+      if (file == null) return null;
+      final path = file.path;
+      if (path == null) return null;
+      final dir = await getApplicationDocumentsDirectory();
+      final ext = (file.extension ?? 'png').toLowerCase();
+      final safeExt = (ext == 'heic' || ext == 'heif') ? 'jpg' : ext;
+      final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.$safeExt');
+      await File(path).copy(dest.path);
+      originalPath = dest.path;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 3) Intentar quitar el fondo automaticamente; si falla, conservar original.
+  final processed = await _removeBackground(originalPath);
+  return processed ?? originalPath;
+}
+
+Future<String?> _removeBackground(String sourcePath) async {
   try {
-    final file = await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: const ['png', 'jpg', 'jpeg', 'heic', 'heif'],
-    );
-    if (file == null) return null;
-    final path = file.path;
-    if (path == null) return null;
+    final bytes = await File(sourcePath).readAsBytes();
+    final image = img.decodeImage(bytes);
+    if (image == null) return null;
+
+    // Flood-fill desde las 4 esquinas eliminando pixeles similares al color de fondo.
+    final bg = _cornerColor(image);
+    final visited = List.generate(image.height, (_) => List<bool>.filled(image.width, false));
+    final queue = <(int, int)>[];
+    void enqueue(int x, int y) {
+      if (x < 0 || y < 0 || x >= image.width || y >= image.height) return;
+      if (visited[y][x]) return;
+      if (!_similar(image.getPixel(x, y), bg)) return;
+      visited[y][x] = true;
+      queue.add((x, y));
+    }
+    enqueue(0, 0);
+    enqueue(image.width - 1, 0);
+    enqueue(0, image.height - 1);
+    enqueue(image.width - 1, image.height - 1);
+
+    while (queue.isNotEmpty) {
+      final (x, y) = queue.removeLast();
+      image.setPixelRgba(x, y, 0, 0, 0, 0);
+      enqueue(x + 1, y);
+      enqueue(x - 1, y);
+      enqueue(x, y + 1);
+      enqueue(x, y - 1);
+    }
+
     final dir = await getApplicationDocumentsDirectory();
-    final ext = (file.extension ?? 'png').toLowerCase();
-    final safeExt = (ext == 'heic' || ext == 'heif') ? 'jpg' : ext;
-    final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.$safeExt');
-    await File(path).copy(dest.path);
+    final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.png');
+    final pngBytes = img.encodePng(image);
+    await dest.writeAsBytes(pngBytes);
     return dest.path;
   } catch (_) {
     return null;
   }
 }
+
+img.Color _cornerColor(img.Image image) {
+  // Promedio de las 4 esquinas.
+  final c1 = image.getPixel(0, 0);
+  final c2 = image.getPixel(image.width - 1, 0);
+  final c3 = image.getPixel(0, image.height - 1);
+  final c4 = image.getPixel(image.width - 1, image.height - 1);
+  final r = (c1.r + c2.r + c3.r + c4.r) ~/ 4;
+  final g = (c1.g + c2.g + c3.g + c4.g) ~/ 4;
+  final b = (c1.b + c2.b + c3.b + c4.b) ~/ 4;
+  return img.ColorRgba8(r, g, b, 255);
+}
+
+bool _similar(img.Pixel pixel, img.Color bg) {
+  final dr = (pixel.r - bg.r).abs();
+  final dg = (pixel.g - bg.g).abs();
+  final db = (pixel.b - bg.b).abs();
+  return (dr + dg + db) < 60;
+}
+
 
 Widget _vehicleImage(Vehicle vehicle) {
   final path = vehicle.imagePath;
