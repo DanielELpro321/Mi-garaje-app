@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1053,21 +1054,9 @@ class _GarageAppState extends State<GarageApp> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => _scanDocument('SOAT'),
-                  icon: const Icon(Icons.description_rounded, size: 18),
-                  label: const Text('Subir SOAT'),
-                ),
-              ),
+              Expanded(child: _documentButton('SOAT')),
               const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => _scanDocument('Tecnomecánica'),
-                  icon: const Icon(Icons.verified_rounded, size: 18),
-                  label: const Text('Tecnomecánica'),
-                ),
-              ),
+              Expanded(child: _documentButton('Tecnomecánica')),
             ],
           ),
           const SizedBox(height: 20),
@@ -2433,6 +2422,71 @@ class _GarageAppState extends State<GarageApp> {
     _message('Mantenimiento registrado');
   }
 
+  Widget _documentButton(String kind) {
+    final vehicle = _vehicle;
+    final hasDoc = vehicle != null &&
+        _data.documents.any((d) => d.vehicleId == vehicle.id && d.name == kind);
+    return FilledButton.icon(
+      onPressed: () => hasDoc ? _viewDocument(kind) : _scanDocument(kind),
+      icon: Icon(
+        hasDoc ? Icons.visibility_rounded : Icons.upload_file_rounded,
+        size: 18,
+      ),
+      label: Text(hasDoc ? 'Ver $kind' : 'Subir $kind'),
+    );
+  }
+
+  Future<void> _viewDocument(String kind) async {
+    final vehicle = _vehicle;
+    if (vehicle == null) return;
+    final doc = _data.documents.lastWhere(
+      (d) => d.vehicleId == vehicle.id && d.name == kind,
+      orElse: () => VehicleDocument(vehicleId: vehicle.id, name: kind, expiry: _today()),
+    );
+    await _showDialog<void>(
+      builder: (context) => _GlassDialog(
+        title: Text(kind),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (doc.imagePath != null && !kIsWeb)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(File(doc.imagePath!), height: 160, fit: BoxFit.contain),
+                ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_month_rounded, color: _red),
+                title: const Text('Fecha de vencimiento'),
+                subtitle: Text(_dateLabel(doc.expiry)),
+              ),
+              if (doc.details.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(doc.details, style: const TextStyle(fontSize: 12)),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _scanDocument(kind);
+            },
+            child: const Text('Re-escanear'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _scanDocument(String kind) async {
     final vehicle = _vehicle;
     if (vehicle == null) {
@@ -2478,16 +2532,20 @@ class _GarageAppState extends State<GarageApp> {
       return;
     }
 
-    // OCR on-device (sin internet).
+    // OCR on-device (sin internet). En web no esta soportado.
     String extractedText = '';
-    try {
-      final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
-      final inputImage = InputImage.fromFilePath(imagePath);
-      final recognized = await recognizer.processImage(inputImage);
-      extractedText = recognized.text;
-      await recognizer.close();
-    } catch (e) {
-      debugPrint('[OCR] error: $e');
+    if (kIsWeb) {
+      extractedText = 'OCR no disponible en web. Edita manualmente.';
+    } else {
+      try {
+        final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        final inputImage = InputImage.fromFilePath(imagePath);
+        final recognized = await recognizer.processImage(inputImage);
+        extractedText = recognized.text;
+        await recognizer.close();
+      } catch (e) {
+        debugPrint('[OCR] error: $e');
+      }
     }
 
     // Extraer fecha de vencimiento (la fecha futura mas lejana detectada).
@@ -2522,7 +2580,7 @@ class _GarageAppState extends State<GarageApp> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (imagePath != null)
+                  if (imagePath != null && !kIsWeb)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
