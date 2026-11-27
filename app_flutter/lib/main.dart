@@ -276,6 +276,9 @@ String _today() {
   return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
+String _dateIso(DateTime date) =>
+    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
 String _money(num value) {
   final digits = value.round().toString();
   final grouped = digits.replaceAllMapped(
@@ -425,6 +428,38 @@ class ServiceEntry {
   );
 }
 
+class ExpenseEntry {
+  ExpenseEntry({
+    String? id,
+    required this.vehicleId,
+    required this.description,
+    required this.amount,
+    required this.date,
+  }) : id = id ?? _id();
+
+  final String id;
+  String vehicleId;
+  String description;
+  double amount;
+  String date;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'vehicleId': vehicleId,
+    'description': description,
+    'amount': amount,
+    'date': date,
+  };
+
+  factory ExpenseEntry.fromJson(Map<String, dynamic> json) => ExpenseEntry(
+    id: json['id'] as String?,
+    vehicleId: json['vehicleId'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    amount: (json['amount'] as num?)?.toDouble() ?? 0,
+    date: json['date'] as String? ?? _today(),
+  );
+}
+
 class VehicleDocument {
   VehicleDocument({
     String? id,
@@ -461,6 +496,7 @@ class GarageData {
   List<FuelEntry> fuel = [];
   List<ServiceEntry> services = [];
   List<VehicleDocument> documents = [];
+  List<ExpenseEntry> expenses = [];
   String owner = '';
   String nickname = '';
   String city = '';
@@ -474,6 +510,7 @@ class GarageData {
     'fuel': fuel.map((e) => e.toJson()).toList(),
     'services': services.map((e) => e.toJson()).toList(),
     'documents': documents.map((e) => e.toJson()).toList(),
+    'expenses': expenses.map((e) => e.toJson()).toList(),
     'owner': owner,
     'nickname': nickname,
     'city': city,
@@ -500,6 +537,10 @@ class GarageData {
       ..documents = (json['documents'] as List? ?? [])
           .whereType<Map>()
           .map((e) => VehicleDocument.fromJson(Map<String, dynamic>.from(e)))
+          .toList()
+      ..expenses = (json['expenses'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => ExpenseEntry.fromJson(Map<String, dynamic>.from(e)))
           .toList()
       ..owner = json['owner'] as String? ?? ''
       ..nickname = json['nickname'] as String? ?? ''
@@ -1674,6 +1715,57 @@ class _GarageAppState extends State<GarageApp> {
             ],
           ),
         ),
+        const SizedBox(height: 22),
+        _sectionTitle('Gastos y reparaciones', action: 'Agregar', onAction: _addExpense),
+        const SizedBox(height: 10),
+        if (_data.expenses.isEmpty)
+          _emptyCard('Aún no has registrado gastos')
+        else
+          ..._data.expenses
+              .where((e) => e.vehicleId == vehicle?.id)
+              .toList()
+              .reversed
+              .map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _Panel(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: _red.withValues(alpha: .12),
+                          ),
+                          child: const Icon(Icons.build_rounded, color: _red, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                e.description,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                _dateLabel(e.date),
+                                style: const TextStyle(color: _muted, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          _money(e.amount),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
       ],
     );
   }
@@ -2377,6 +2469,95 @@ class _GarageAppState extends State<GarageApp> {
     if (saved == null) return;
     _data.documents.add(saved);
     await _save();
+  }
+
+  Future<void> _addExpense() async {
+    final vehicle = _vehicle;
+    if (vehicle == null) {
+      _message('Agrega primero una moto.', isError: true);
+      return;
+    }
+    final desc = TextEditingController();
+    final amount = TextEditingController();
+    DateTime date = DateTime.now();
+    final saved = await _showDialog<ExpenseEntry>(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => _GlassDialog(
+          title: const Text('Agregar gasto / reparación'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: desc,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción (ej. pegar cables)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Monto (COP)'),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_month_rounded, color: _red),
+                  title: const Text('Fecha'),
+                  subtitle: Text(_dateLabel(date.toIso8601String())),
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: date,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2200),
+                    );
+                    if (d != null) setDialogState(() => date = d);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (desc.text.trim().isEmpty) {
+                  _message('Escribe la descripción.', isError: true);
+                  return;
+                }
+                final value = double.tryParse(amount.text.replaceAll(',', '.')) ?? 0;
+                if (value <= 0) {
+                  _message('Ingresa un monto válido.', isError: true);
+                  return;
+                }
+                Navigator.pop(
+                  context,
+                  ExpenseEntry(
+                    vehicleId: vehicle.id,
+                    description: desc.text.trim(),
+                    amount: value,
+                    date: _dateIso(date),
+                  ),
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    desc.dispose();
+    amount.dispose();
+    if (saved == null) return;
+    _data.expenses.add(saved);
+    await _save();
+    _message('Gasto registrado');
   }
 
   Future<void> _editProfile() async {
