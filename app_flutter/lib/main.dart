@@ -1615,6 +1615,7 @@ class _GarageAppState extends State<GarageApp> {
                 child: _documentTile(d),
               ),
             ),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _addDocument,
             icon: const Icon(Icons.add),
@@ -1730,6 +1731,7 @@ class _GarageAppState extends State<GarageApp> {
                 return d != null && d.year == now.year && d.month == now.month;
               }).length}',
             ),
+            const SizedBox(width: 10),
             _metric('Registros', '$fuelCount'),
           ],
         ),
