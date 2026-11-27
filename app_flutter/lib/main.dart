@@ -125,19 +125,98 @@ Future<String?> _removeBackground(String sourcePath) async {
     final bg = _cornerColor(image);
     debugPrint('[BG-REMOVE] corner color: r=${bg.r} g=${bg.g} b=${bg.b}');
 
-    // Eliminar todos los pixeles similares al color de fondo (no solo conectados),
-    // para que funcione aunque el fondo no toque las esquinas.
+    // 1) Flood-fill desde TODOS los pixeles del borde: elimina el fondo conectado
+    //    a los bordes (preserva la moto aunque comparta colores con el fondo).
+    final visited = List.generate(image.height, (_) => List<bool>.filled(image.width, false));
+    final queue = <(int, int)>[];
+    void enqueue(int x, int y) {
+      if (x < 0 || y < 0 || x >= image.width || y >= image.height) return;
+      if (visited[y][x]) return;
+      if (!_similar(image.getPixel(x, y), bg)) return;
+      visited[y][x] = true;
+      queue.add((x, y));
+    }
+    for (int x = 0; x < image.width; x++) {
+      enqueue(x, 0);
+      enqueue(x, image.height - 1);
+    }
+    for (int y = 0; y < image.height; y++) {
+      enqueue(0, y);
+      enqueue(image.width - 1, y);
+    }
     int removed = 0;
+    while (queue.isNotEmpty) {
+      final (x, y) = queue.removeLast();
+      image.setPixelRgba(x, y, 0, 0, 0, 0);
+      removed++;
+      enqueue(x + 1, y);
+      enqueue(x - 1, y);
+      enqueue(x, y + 1);
+      enqueue(x, y - 1);
+    }
+    debugPrint('[BG-REMOVE] flood-fill removed: $removed');
+
+    // 2) Eliminar islas pequenas de fondo restantes (manchas) con umbral mas estricto.
+    //    Solo elimina pixeles muy cercanos al color de fondo que formen componentes
+    //    pequenos, para no comerse la moto.
+    final strictThreshold = 40;
+    bool strictSimilar(img.Pixel px) {
+      final dr = (px.r - bg.r).abs();
+      final dg = (px.g - bg.g).abs();
+      final db = (px.b - bg.b).abs();
+      return (dr + dg + db) < strictThreshold;
+    }
+    // Marcar componentes conectados de pixeles "fondo estricto".
+    final compId = List.generate(image.height, (_) => List<int>.filled(image.width, -1));
+    int compCount = 0;
+    final compSizes = <int>[];
+    for (int sy = 0; sy < image.height; sy++) {
+      for (int sx = 0; sx < image.width; sx++) {
+        if (compId[sy][sx] != -1) continue;
+        final px = image.getPixel(sx, sy);
+        if (px.a == 0) {
+          compId[sy][sx] = -2; // transparente ya
+          continue;
+        }
+        if (!strictSimilar(px)) {
+          compId[sy][sx] = -3; // no fondo
+          continue;
+        }
+        // BFS componente
+        final stack = <(int, int)>[(sx, sy)];
+        compId[sy][sx] = compCount;
+        int size = 0;
+        while (stack.isNotEmpty) {
+          final (cx, cy) = stack.removeLast();
+          size++;
+          for (final (nx, ny) in [(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)]) {
+            if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue;
+            if (compId[ny][nx] != -1) continue;
+            final npx = image.getPixel(nx, ny);
+            if (npx.a == 0) { compId[ny][nx] = -2; continue; }
+            if (!strictSimilar(npx)) { compId[ny][nx] = -3; continue; }
+            compId[ny][nx] = compCount;
+            stack.add((nx, ny));
+          }
+        }
+        compSizes.add(size);
+        compCount++;
+      }
+    }
+    // Eliminar componentes pequenos (islas) < 2% del area total
+    final totalArea = image.width * image.height;
+    final smallThreshold = totalArea ~/ 50;
+    int extraRemoved = 0;
     for (int y = 0; y < image.height; y++) {
       for (int x = 0; x < image.width; x++) {
-        final px = image.getPixel(x, y);
-        if (_similar(px, bg)) {
+        final id = compId[y][x];
+        if (id >= 0 && id < compSizes.length && compSizes[id] < smallThreshold) {
           image.setPixelRgba(x, y, 0, 0, 0, 0);
-          removed++;
+          extraRemoved++;
         }
       }
     }
-    debugPrint('[BG-REMOVE] removed pixels: $removed / ${image.width * image.height}');
+    debugPrint('[BG-REMOVE] extra small-islands removed: $extraRemoved');
 
     final dir = await getApplicationDocumentsDirectory();
     final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.png');
