@@ -296,6 +296,16 @@ String _dateLabel(String value) {
   return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 }
 
+String _longDateLabel(String value) {
+  final d = DateTime.tryParse(value);
+  if (d == null) return value;
+  const months = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+  return '${d.day} de ${months[d.month - 1]}, ${d.year}';
+}
+
 class Vehicle {
   Vehicle({
     String? id,
@@ -2069,54 +2079,136 @@ class _GarageAppState extends State<GarageApp> {
 
   Widget _documentTile(VehicleDocument document) {
     final expiry = DateTime.tryParse(document.expiry);
-    final expired = expiry != null && expiry.isBefore(DateTime.now());
+    final now = DateTime.now();
+    final daysLeft = expiry?.difference(DateTime(now.year, now.month, now.day)).inDays;
+    final expired = daysLeft != null && daysLeft < 0;
+    final soon = daysLeft != null && daysLeft >= 0 && daysLeft <= 30;
+    final color = expired
+        ? _red
+        : soon
+        ? const Color(0xFFFFA726)
+        : _green;
+    final statusText = expired
+        ? 'Vencido'
+        : daysLeft == null
+        ? 'Vigente'
+        : daysLeft == 0
+        ? 'Vence hoy'
+        : 'Vigente - Faltan $daysLeft días';
     return _Panel(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            backgroundColor: (expired ? _red : _green).withValues(alpha: 0.15),
-            child: Icon(
-              Icons.verified_user_outlined,
-              color: expired ? _red : _green,
-              size: 19,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  document.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: color.withValues(alpha: 0.14),
                 ),
-                Text(
-                  'Vence ${_dateLabel(document.expiry)}',
-                  style: const TextStyle(color: _muted, fontSize: 12),
+                child: Icon(
+                  document.name == 'SOAT'
+                      ? Icons.verified_user_rounded
+                      : Icons.fact_check_rounded,
+                  color: color,
+                  size: 22,
                 ),
-              ],
-            ),
-          ),
-          Text(
-            expired ? 'Vencido' : 'Vigente',
-            style: TextStyle(
-              color: expired ? _red : _green,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              if (value == 'delete') {
-                _data.documents.removeWhere((e) => e.id == document.id);
-                await _save();
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      document.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Vence: ${_longDateLabel(document.expiry)}',
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: color.withValues(alpha: 0.16),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (document.imagePath != null)
+                IconButton(
+                  tooltip: 'Ver foto original',
+                  onPressed: () => _viewImageFullScreen(document.imagePath!),
+                  icon: const Icon(Icons.visibility_rounded, size: 20, color: _muted),
+                ),
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'delete') {
+                    _data.documents.removeWhere((e) => e.id == document.id);
+                    await _save();
+                  } else if (value == 'edit') {
+                    await _scanDocument(document.name);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Re-escanear')),
+                  PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+                ],
+              ),
             ],
           ),
+          if (document.details.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              document.details,
+              style: const TextStyle(color: _muted, fontSize: 11),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  void _viewImageFullScreen(String path) {
+    _showDialog<void>(
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: path.startsWith('assets/')
+                  ? Image.asset(path, fit: BoxFit.contain)
+                  : Image.file(File(path), fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2451,10 +2543,12 @@ class _GarageAppState extends State<GarageApp> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (doc.imagePath != null && !kIsWeb)
+              if (doc.imagePath != null)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.file(File(doc.imagePath!), height: 160, fit: BoxFit.contain),
+                  child: kIsWeb
+                      ? Image.network(doc.imagePath!, height: 160, fit: BoxFit.contain)
+                      : Image.file(File(doc.imagePath!), height: 160, fit: BoxFit.contain),
                 ),
               const SizedBox(height: 12),
               ListTile(
@@ -2605,10 +2699,12 @@ class _GarageAppState extends State<GarageApp> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (imagePath != null && !kIsWeb)
+                    if (imagePath != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
+                        child: kIsWeb
+                            ? Image.network(imagePath, height: 160, fit: BoxFit.contain)
+                            : Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
                       ),
                     const SizedBox(height: 12),
                     ListTile(
