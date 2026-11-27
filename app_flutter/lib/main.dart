@@ -951,7 +951,7 @@ class _GarageAppState extends State<GarageApp> {
                 ],
               ),
               floatingActionButton: Padding(
-                padding: const EdgeInsets.only(bottom: 108),
+                padding: const EdgeInsets.only(bottom: 80),
                 child: switch (_tab) {
                 2 => _LiquidFab(
                   icon: Icons.mic_rounded,
