@@ -1070,7 +1070,7 @@ class _GarageAppState extends State<GarageApp> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
           Row(
             children: [
               _metric(
@@ -1539,6 +1539,7 @@ class _GarageAppState extends State<GarageApp> {
                   child: _documentTile(document),
                 ),
               ),
+          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _addDocument,
             icon: const Icon(Icons.description_outlined),
