@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -59,20 +60,40 @@ String? _autoVehicleImage(String brand, String model) {
 }
 
 Future<String?> _pickPngAndPersist() async {
-  final file = await FilePicker.pickFile(
-    type: FileType.custom,
-    allowedExtensions: const ['png'],
-  );
-  if (file == null) return null;
-  final path = file.path;
-  if (path == null) return null;
+  // 1) Intentar galeria/camara con image_picker (convierte HEIC a JPEG).
   try {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
+    if (picked != null) {
+      final dir = await getApplicationDocumentsDirectory();
+      final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.jpg');
+      await File(picked.path).copy(dest.path);
+      return dest.path;
+    }
+  } catch (_) {
+    // cae al selector de archivos
+  }
+
+  // 2) Respaldo: selector de archivos (PNG/JPG/JPEG/HEIC/HEIF).
+  try {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: const ['png', 'jpg', 'jpeg', 'heic', 'heif'],
+    );
+    if (file == null) return null;
+    final path = file.path;
+    if (path == null) return null;
     final dir = await getApplicationDocumentsDirectory();
-    final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.png');
+    final ext = (file.extension ?? 'png').toLowerCase();
+    final safeExt = (ext == 'heic' || ext == 'heif') ? 'jpg' : ext;
+    final dest = File('${dir.path}/vehicle_${DateTime.now().microsecondsSinceEpoch}.$safeExt');
     await File(path).copy(dest.path);
     return dest.path;
   } catch (_) {
-    return path;
+    return null;
   }
 }
 
