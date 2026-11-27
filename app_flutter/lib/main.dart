@@ -2488,45 +2488,65 @@ class _GarageAppState extends State<GarageApp> {
   }
 
   Future<void> _scanDocument(String kind) async {
+    debugPrint('[SCAN] start kind=$kind');
     final vehicle = _vehicle;
     if (vehicle == null) {
       _message('Agrega primero una moto.', isError: true);
       return;
     }
 
-    // Elegir imagen (galeria/camara/archivos) 100% local.
     String? imagePath;
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
-      if (picked != null) {
-        final dir = await getApplicationDocumentsDirectory();
-        final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.jpg');
-        await File(picked.path).copy(dest.path);
-        imagePath = dest.path;
-      }
-    } catch (_) {}
-    if (imagePath == null) {
-      try {
-        final file = await FilePicker.pickFile(
-          type: FileType.custom,
-          allowedExtensions: const ['png', 'jpg', 'jpeg', 'heic', 'heif', 'pdf'],
-        );
-        if (file != null && file.path != null) {
-          final path = file.path!;
-          final ext = (file.extension ?? 'jpg').toLowerCase();
-          if (ext == 'pdf') {
-            _message('PDF no soporta OCR local en esta version; usa una foto.', isError: true);
-            return;
-          }
-          final dir = await getApplicationDocumentsDirectory();
-          final safeExt = (ext == 'heic' || ext == 'heif') ? 'jpg' : ext;
-          final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.$safeExt');
-          await File(path).copy(dest.path);
-          imagePath = dest.path;
+      // En web, usar image_picker directamente (path es blob URL).
+      if (kIsWeb) {
+        final picker = ImagePicker();
+        final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+        if (picked != null) {
+          imagePath = picked.path;
+          debugPrint('[SCAN] web picked=$imagePath');
         }
-      } catch (_) {}
+      } else {
+        // 1) galeria/camara
+        try {
+          final picker = ImagePicker();
+          final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+          if (picked != null) {
+            final dir = await getApplicationDocumentsDirectory();
+            final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.jpg');
+            await File(picked.path).copy(dest.path);
+            imagePath = dest.path;
+            debugPrint('[SCAN] mobile picked=$imagePath');
+          }
+        } catch (e) {
+          debugPrint('[SCAN] image_picker error: $e');
+        }
+        // 2) respaldo archivos
+        if (imagePath == null) {
+          try {
+            final file = await FilePicker.pickFile(
+              type: FileType.custom,
+              allowedExtensions: const ['png', 'jpg', 'jpeg', 'heic', 'heif'],
+            );
+            if (file != null && file.path != null) {
+              final path = file.path!;
+              final ext = (file.extension ?? 'jpg').toLowerCase();
+              final dir = await getApplicationDocumentsDirectory();
+              final safeExt = (ext == 'heic' || ext == 'heif') ? 'jpg' : ext;
+              final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.$safeExt');
+              await File(path).copy(dest.path);
+              imagePath = dest.path;
+              debugPrint('[SCAN] file_picker picked=$imagePath');
+            }
+          } catch (e) {
+            debugPrint('[SCAN] file_picker error: $e');
+          }
+        }
+      }
+    } catch (e, st) {
+      debugPrint('[SCAN] outer error: $e');
+      debugPrint('[SCAN] stack: $st');
     }
+
     if (imagePath == null) {
       _message('No se selecciono imagen.', isError: true);
       return;
@@ -2550,105 +2570,124 @@ class _GarageAppState extends State<GarageApp> {
 
     // Extraer fecha de vencimiento (la fecha futura mas lejana detectada).
     DateTime expiry = DateTime.now().add(const Duration(days: 365));
-    final dateRegex = RegExp(r'\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b');
-    final dates = <DateTime>[];
-    for (final m in dateRegex.allMatches(extractedText)) {
-      final d = int.tryParse(m.group(1)!);
-      final mo = int.tryParse(m.group(2)!);
-      var y = int.tryParse(m.group(3)!);
-      if (d == null || mo == null || y == null) continue;
-      if (y < 100) y += 2000;
-      final dt = DateTime.tryParse('$y-${mo.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}');
-      if (dt != null) dates.add(dt);
+    try {
+      final dateRegex = RegExp(r'\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b');
+      final dates = <DateTime>[];
+      for (final m in dateRegex.allMatches(extractedText)) {
+        final d = int.tryParse(m.group(1)!);
+        final mo = int.tryParse(m.group(2)!);
+        var y = int.tryParse(m.group(3)!);
+        if (d == null || mo == null || y == null) continue;
+        if (y < 100) y += 2000;
+        final dt = DateTime.tryParse('$y-${mo.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}');
+        if (dt != null) dates.add(dt);
+      }
+      if (dates.isNotEmpty) {
+        dates.sort();
+        final now = DateTime.now();
+        final future = dates.where((d) => d.isAfter(now)).toList();
+        expiry = future.isNotEmpty ? future.last : dates.last;
+      }
+    } catch (e) {
+      debugPrint('[SCAN] date parse error: $e');
     }
-    if (dates.isNotEmpty) {
-      dates.sort();
-      final now = DateTime.now();
-      final future = dates.where((d) => d.isAfter(now)).toList();
-      expiry = future.isNotEmpty ? future.last : dates.last;
-    }
-
 
     final detailsController = TextEditingController(text: extractedText.trim());
-    final saved = await _showDialog<VehicleDocument>(
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          DateTime selectedExpiry = expiry;
-          return _GlassDialog(
-            title: Text('Subir $kind'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (imagePath != null && !kIsWeb)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
+    VehicleDocument? saved;
+    try {
+      saved = await _showDialog<VehicleDocument>(
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) {
+            DateTime selectedExpiry = expiry;
+            return _GlassDialog(
+              title: Text('Subir $kind'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (imagePath != null && !kIsWeb)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
+                      ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_month_rounded, color: _red),
+                      title: const Text('Fecha de vencimiento'),
+                      subtitle: Text(_dateLabel(selectedExpiry.toIso8601String())),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: selectedExpiry,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2200),
+                        );
+                        if (d != null) setDialogState(() => selectedExpiry = d);
+                      },
                     ),
-                  const SizedBox(height: 12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.calendar_month_rounded, color: _red),
-                    title: const Text('Fecha de vencimiento'),
-                    subtitle: Text(_dateLabel(selectedExpiry.toIso8601String())),
-                    onTap: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: selectedExpiry,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2200),
-                      );
-                      if (d != null) setDialogState(() => selectedExpiry = d);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: detailsController,
-                    maxLines: 6,
-                    decoration: const InputDecoration(labelText: 'Detalles detectados (editable)'),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    extractedText.isEmpty
-                        ? 'No se detecto texto claro. Edita manualmente.'
-                        : 'Texto reconocido localmente.',
-                    style: const TextStyle(color: _muted, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(
-                    context,
-                    VehicleDocument(
-                      vehicleId: vehicle.id,
-                      name: kind,
-                      expiry: _dateIso(selectedExpiry),
-                      details: detailsController.text.trim(),
-                      imagePath: imagePath,
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: detailsController,
+                      maxLines: 6,
+                      decoration: const InputDecoration(labelText: 'Detalles detectados (editable)'),
                     ),
-                  );
-                },
-                child: const Text('Guardar'),
+                    const SizedBox(height: 8),
+                    Text(
+                      extractedText.isEmpty
+                          ? 'No se detecto texto claro. Edita manualmente.'
+                          : 'Texto reconocido localmente.',
+                      style: const TextStyle(color: _muted, fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          );
-        },
-      ),
-    );
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      context,
+                      VehicleDocument(
+                        vehicleId: vehicle.id,
+                        name: kind,
+                        expiry: _dateIso(selectedExpiry),
+                        details: detailsController.text.trim(),
+                        imagePath: kIsWeb ? null : imagePath,
+                      ),
+                    );
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('[SCAN] dialog error: $e');
+      debugPrint('[SCAN] stack: $st');
+    }
     detailsController.dispose();
-    if (saved == null) return;
-    _data.documents.removeWhere((d) => d.vehicleId == vehicle.id && d.name == kind);
-    _data.documents.add(saved);
-    await _save();
-    _message('$kind guardado');
+    if (saved == null) {
+      debugPrint('[SCAN] cancelled or failed');
+      return;
+    }
+    try {
+      _data.documents.removeWhere((d) => d.vehicleId == vehicle.id && d.name == kind);
+      _data.documents.add(saved);
+      await _save();
+      _message('$kind guardado');
+      debugPrint('[SCAN] saved $kind');
+    } catch (e) {
+      debugPrint('[SCAN] save error: $e');
+      _message('Error al guardar: $e', isError: true);
+    }
   }
+
 
   Future<void> _addDocument() async {
     final vehicle = _vehicle;
