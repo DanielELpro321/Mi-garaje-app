@@ -6,7 +6,6 @@ import 'dart:ui';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -2643,21 +2642,9 @@ class _GarageAppState extends State<GarageApp> {
       return;
     }
 
-    // OCR on-device (sin internet). En web y en iOS (crash conocido de ML Kit) se omite.
-    String extractedText = '';
-    if (kIsWeb || Platform.isIOS) {
-      extractedText = 'OCR no disponible en este dispositivo. Edita manualmente.';
-    } else {
-      try {
-        final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
-        final inputImage = InputImage.fromFilePath(imagePath);
-        final recognized = await recognizer.processImage(inputImage);
-        extractedText = recognized.text;
-        await recognizer.close();
-      } catch (e) {
-        debugPrint('[OCR] error: $e');
-      }
-    }
+    // OCR eliminado (google_mlkit removido para evitar fallos en iOS/CocoaPods).
+    // La fecha y los detalles se ingresan manualmente.
+    const extractedText = 'Ingresa la fecha y los detalles manualmente.';
 
     // Extraer fecha de vencimiento (la fecha futura mas lejana detectada).
     DateTime expiry = DateTime.now().add(const Duration(days: 365));
