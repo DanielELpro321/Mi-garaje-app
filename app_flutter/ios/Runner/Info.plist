@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Mi Garaje accede a tus fotos para elegir la imagen de tu moto.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Mi Garaje usa la cámara para fotografiar documentos del vehículo.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Mi Garaje usa el micrófono para dictar los mantenimientos de tu moto.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
