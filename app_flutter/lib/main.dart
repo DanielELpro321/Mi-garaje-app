@@ -2543,14 +2543,6 @@ class _GarageAppState extends State<GarageApp> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (doc.imagePath != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: kIsWeb
-                      ? Image.network(doc.imagePath!, height: 160, fit: BoxFit.contain)
-                      : Image.file(File(doc.imagePath!), height: 160, fit: BoxFit.contain),
-                ),
-              const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.calendar_month_rounded, color: _red),
@@ -2699,14 +2691,6 @@ class _GarageAppState extends State<GarageApp> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (imagePath != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: kIsWeb
-                            ? Image.network(imagePath, height: 160, fit: BoxFit.contain)
-                            : Image.file(File(imagePath), height: 160, fit: BoxFit.contain),
-                      ),
-                    const SizedBox(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.calendar_month_rounded, color: _red),
