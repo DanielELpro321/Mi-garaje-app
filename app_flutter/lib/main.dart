@@ -2597,10 +2597,15 @@ class _GarageAppState extends State<GarageApp> {
           final picker = ImagePicker();
           final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
           if (picked != null) {
-            final dir = await getApplicationDocumentsDirectory();
-            final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.jpg');
-            await File(picked.path).copy(dest.path);
-            imagePath = dest.path;
+            try {
+              final dir = await getApplicationDocumentsDirectory();
+              final dest = File('${dir.path}/doc_${DateTime.now().microsecondsSinceEpoch}.jpg');
+              await File(picked.path).copy(dest.path);
+              imagePath = dest.path;
+            } catch (e) {
+              debugPrint('[SCAN] copy failed, using picked path: $e');
+              imagePath = picked.path;
+            }
             debugPrint('[SCAN] mobile picked=$imagePath');
           }
         } catch (e) {
@@ -2638,10 +2643,10 @@ class _GarageAppState extends State<GarageApp> {
       return;
     }
 
-    // OCR on-device (sin internet). En web no esta soportado.
+    // OCR on-device (sin internet). En web y en iOS (crash conocido de ML Kit) se omite.
     String extractedText = '';
-    if (kIsWeb) {
-      extractedText = 'OCR no disponible en web. Edita manualmente.';
+    if (kIsWeb || Platform.isIOS) {
+      extractedText = 'OCR no disponible en este dispositivo. Edita manualmente.';
     } else {
       try {
         final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
